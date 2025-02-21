@@ -1,0 +1,12 @@
+{
+    "name": "op-art-visualizer",
+    "version": "1.0.0",
+    "description": "A simple op-art visualizer with interactive text",
+    "main": "server.js",
+    "scripts": {
+      "start": "node server.js"
+    },
+    "dependencies": {
+      "express": "^4.18.2"
+    }
+  }
