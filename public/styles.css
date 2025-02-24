@@ -1,0 +1,9 @@
+/* For example, center the canvas if needed or adjust body styles */
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: "Roboto", serif;
+    background: red;
+  }
+  
