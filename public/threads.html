@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Thread Simulation with Mobile Tap</title>
+    <title>Thread Simulation with Thicker Mobile Threads (4px)</title>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background: black; }
         canvas { display: block; background: black; }
@@ -41,6 +41,10 @@
         const MOUSE_RADIUS = 100;
         const MOUSE_FORCE = 1.5;
 
+        // Detect mobile device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+        const THREAD_WIDTH = isMobile ? 4 : 1; // 4px on mobile, 1px on desktop
+
         // Audio setup
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const C_PENTATONIC_MINOR_BASE = [16.35, 19.45, 21.83, 24.50, 29.14]; // C0, Eb0, F0, G0, Bb0
@@ -70,7 +74,7 @@
         }
         createImpulseResponse();
 
-        // Interaction position (shared for mouse and touch)
+        // Interaction position
         let pointer = { x: 0, y: 0, prevX: 0, prevY: 0, active: false };
         let started = false;
 
@@ -282,7 +286,7 @@
                     ctx.lineTo(thread[i].x, thread[i].y);
                 }
                 ctx.strokeStyle = color;
-                ctx.lineWidth = 1;
+                ctx.lineWidth = THREAD_WIDTH; // 4px on mobile
                 ctx.stroke();
             });
 
