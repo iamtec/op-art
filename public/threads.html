@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Thread Simulation with Lighter Purple and Fade-Out</title>
+    <title>Thread Simulation with Mobile Tap</title>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background: black; }
         canvas { display: block; background: black; }
@@ -21,7 +21,7 @@
             font-size: 48px;
             cursor: pointer;
             z-index: 10;
-            transition: opacity 0.5s ease; /* Fade transition */
+            transition: opacity 0.5s ease;
         }
     </style>
 </head>
@@ -51,7 +51,7 @@
             });
         }
 
-        // Colors for C, Eb, F, G, Bb (lightened #231942 to #4a3b6e)
+        // Colors for C, Eb, F, G, Bb
         const COLORS = ['#4a3b6e', '#5e548e', '#9f86c0', '#be95c4', '#e0b1cb'];
 
         // Reverb
@@ -70,8 +70,8 @@
         }
         createImpulseResponse();
 
-        // Mouse position
-        let mouse = { x: 0, y: 0, prevX: 0, prevY: 0 };
+        // Interaction position (shared for mouse and touch)
+        let pointer = { x: 0, y: 0, prevX: 0, prevY: 0, active: false };
         let started = false;
 
         // Particle class
@@ -89,13 +89,15 @@
                 let vx = (this.x - this.oldX) * DAMPING;
                 let vy = (this.y - this.oldY) * DAMPING;
 
-                const dx = this.x - mouse.x;
-                const dy = this.y - mouse.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                if (distance < MOUSE_RADIUS && distance > 0) {
-                    const force = MOUSE_FORCE * (1 - distance / MOUSE_RADIUS);
-                    vx += (dx / distance) * force;
-                    vy += (dy / distance) * force;
+                if (pointer.active) {
+                    const dx = this.x - pointer.x;
+                    const dy = this.y - pointer.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < MOUSE_RADIUS && distance > 0) {
+                        const force = MOUSE_FORCE * (1 - distance / MOUSE_RADIUS);
+                        vx += (dx / distance) * force;
+                        vy += (dy / distance) * force;
+                    }
                 }
 
                 this.oldX = this.x;
@@ -174,21 +176,60 @@
             oscillator.stop(now + 0.6);
         }
 
-        // Mouse movement with sound detection
+        // Mouse events
         canvas.addEventListener('mousemove', (e) => {
             if (!started) return;
             const rect = canvas.getBoundingClientRect();
-            mouse.prevX = mouse.x;
-            mouse.prevY = mouse.y;
-            mouse.x = e.clientX - rect.left;
-            mouse.y = e.clientY - rect.top;
+            pointer.prevX = pointer.x;
+            pointer.prevY = pointer.y;
+            pointer.x = e.clientX - rect.left;
+            pointer.y = e.clientY - rect.top;
+            pointer.active = true;
 
             threads.forEach((thread, index) => {
                 const threadX = thread[0].x;
-                if ((mouse.prevX < threadX && mouse.x >= threadX) || (mouse.prevX > threadX && mouse.x <= threadX)) {
+                if ((pointer.prevX < threadX && pointer.x >= threadX) || (pointer.prevX > threadX && pointer.x <= threadX)) {
                     playNote(NOTES[index]);
                 }
             });
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            pointer.active = false;
+        });
+
+        // Touch events for mobile
+        canvas.addEventListener('touchstart', (e) => {
+            if (!started) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            pointer.x = touch.clientX - rect.left;
+            pointer.y = touch.clientY - rect.top;
+            pointer.active = true;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!started) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            pointer.prevX = pointer.x;
+            pointer.prevY = pointer.y;
+            pointer.x = touch.clientX - rect.left;
+            pointer.y = touch.clientY - rect.top;
+            pointer.active = true;
+
+            threads.forEach((thread, index) => {
+                const threadX = thread[0].x;
+                if ((pointer.prevX < threadX && pointer.x >= threadX) || (pointer.prevX > threadX && pointer.x <= threadX)) {
+                    playNote(NOTES[index]);
+                }
+            });
+        });
+
+        canvas.addEventListener('touchend', () => {
+            pointer.active = false;
         });
 
         // Resize handler
@@ -199,12 +240,12 @@
         // Start screen handler with fade-out
         startScreen.addEventListener('click', () => {
             started = true;
-            startScreen.style.opacity = '0'; // Fade out
+            startScreen.style.opacity = '0';
             setTimeout(() => {
-                startScreen.style.display = 'none'; // Hide after fade
+                startScreen.style.display = 'none';
                 initThreads();
                 animate();
-            }, 500); // Match transition duration (0.5s)
+            }, 500);
         });
 
         // Simulation loop
@@ -220,8 +261,8 @@
 
                 let minDistance = Infinity;
                 thread.forEach(p => {
-                    const dx = p.x - mouse.x;
-                    const dy = p.y - mouse.y;
+                    const dx = p.x - pointer.x;
+                    const dy = p.y - pointer.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     if (distance < minDistance) minDistance = distance;
                 });
@@ -253,5 +294,4 @@
         canvas.height = window.innerHeight;
     </script>
 </body>
-
 </html>
