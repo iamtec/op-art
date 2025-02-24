@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Thread Simulation with Thicker Mobile Threads (4px)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thread Simulation with Distinct Oscillator Zones</title>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background: black; }
         canvas { display: block; background: black; }
@@ -23,43 +24,176 @@
             z-index: 10;
             transition: opacity 0.5s ease;
         }
+        #controls {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 250px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            box-sizing: border-box;
+            z-index: 20;
+            font-family: Arial, sans-serif;
+        }
+        #toggleControls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 30;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            display: none;
+        }
+        @media (max-width: 768px) {
+            #controls {
+                right: -250px;
+                transition: right 0.3s ease;
+            }
+            #controls.open { right: 0; }
+            #toggleControls { display: block; }
+        }
+        .control {
+            margin: 10px 0;
+        }
+        label { display: block; margin-bottom: 5px; }
+        input[type="range"], select {
+            width: 100%;
+        }
+        button {
+            width: 100%;
+            padding: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover { background: rgba(255, 255, 255, 0.3); }
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
-    <div id="startScreen">Click to Continue</div>
+    <div id="startScreen">Tap to Start</div>
+    <button id="toggleControls">Controls</button>
+    <div id="controls">
+        <div class="control">
+            <label for="gravity">Gravity (0.1-1.0): <span id="gravityValue">0.3</span></label>
+            <input type="range" id="gravity" min="0.1" max="1.0" step="0.1" value="0.3">
+        </div>
+        <div class="control">
+            <label for="nodes">Nodes (5-20): <span id="nodesValue">10</span></label>
+            <input type="range" id="nodes" min="5" max="20" step="1" value="10">
+        </div>
+        <div class="control">
+            <label for="mouseRadius">Mouse Radius (50-200): <span id="mouseRadiusValue">100</span></label>
+            <input type="range" id="mouseRadius" min="50" max="200" step="10" value="100">
+        </div>
+        <div class="control">
+            <label for="mouseForce">Mouse Force (0.5-3.0): <span id="mouseForceValue">1.5</span></label>
+            <input type="range" id="mouseForce" min="0.5" max="3.0" step="0.1" value="1.5">
+        </div>
+        <div class="control">
+            <label for="numThreads">Threads (10-36): <span id="numThreadsValue">35</span></label>
+            <input type="range" id="numThreads" min="10" max="36" step="1" value="35">
+        </div>
+        <div class="control">
+            <label for="threadWidth">Thread Width (1-10): <span id="threadWidthValue">4</span></label>
+            <input type="range" id="threadWidth" min="1" max="10" step="1" value="4">
+        </div>
+        <div class="control">
+            <label for="reverbAmount">Reverb (0-1): <span id="reverbAmountValue">1</span></label>
+            <input type="range" id="reverbAmount" min="0" max="1" step="0.1" value="1">
+        </div>
+        <div class="control">
+            <label for="delayLeft">Delay Left (0.1-0.5): <span id="delayLeftValue">0.25</span></label>
+            <input type="range" id="delayLeft" min="0.1" max="0.5" step="0.05" value="0.25">
+        </div>
+        <div class="control">
+            <label for="delayRight">Delay Right (0.1-0.5): <span id="delayRightValue">0.5</span></label>
+            <input type="range" id="delayRight" min="0.1" max="0.5" step="0.05" value="0.5">
+        </div>
+        <div class="control">
+            <label for="scale">Scale:</label>
+            <select id="scale">
+                <option value="pentatonicMinor">Pentatonic Minor</option>
+                <option value="pentatonicMajor">Pentatonic Major</option>
+                <option value="chromatic">Chromatic</option>
+                <option value="major">Major</option>
+                <option value="minor">Minor</option>
+                <option value="phrygian">Phrygian</option>
+                <option value="lydian">Lydian</option>
+                <option value="dorian">Dorian</option>
+                <option value="mixolydian">Mixolydian</option>
+                <option value="locrian">Locrian</option>
+                <option value="hungarianMinor">Hungarian Minor</option>
+                <option value="persian">Persian</option>
+            </select>
+        </div>
+        <button id="randomizeAll">Randomize All</button>
+    </div>
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const startScreen = document.getElementById('startScreen');
+        const controls = document.getElementById('controls');
+        const toggleControls = document.getElementById('toggleControls');
 
-        // Constants
-        const GRAVITY = 0.3;
-        const DAMPING = 0.98;
-        const SEGMENT_LENGTH = 10;
-        const NUM_THREADS = 40;
-        const MOUSE_RADIUS = 100;
-        const MOUSE_FORCE = 1.5;
-
-        // Detect mobile device
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-        const THREAD_WIDTH = isMobile ? 4 : 1; // 4px on mobile, 1px on desktop
+        // Initial constants
+        let GRAVITY = 0.3;
+        let DAMPING = 0.98;
+        let SEGMENT_LENGTH = 10;
+        let MOUSE_RADIUS = 100;
+        let MOUSE_FORCE = 1.5;
+        let NUM_THREADS = 35;
+        let THREAD_WIDTH = 4;
+        const HIGHLIGHT_RADIUS = 200;
 
         // Audio setup
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const C_PENTATONIC_MINOR_BASE = [16.35, 19.45, 21.83, 24.50, 29.14]; // C0, Eb0, F0, G0, Bb0
-        const NOTES = [];
-        for (let octave = 0; octave < 8; octave++) {
-            C_PENTATONIC_MINOR_BASE.forEach(note => {
-                NOTES.push(note * Math.pow(2, octave));
-            });
+        const C2 = 65.41; // Starting note (C2)
+        let NOTES = [];
+        const SCALES = {
+            pentatonicMinor: [0, 3, 5, 7, 10],
+            pentatonicMajor: [0, 2, 4, 7, 9],
+            chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            major: [0, 2, 4, 5, 7, 9, 11],
+            minor: [0, 2, 3, 5, 7, 8, 10],
+            phrygian: [0, 1, 3, 5, 7, 8, 10],
+            lydian: [0, 2, 4, 6, 7, 9, 11],
+            dorian: [0, 2, 3, 5, 7, 9, 10],
+            mixolydian: [0, 2, 4, 5, 7, 9, 10],
+            locrian: [0, 1, 3, 5, 6, 8, 10],
+            hungarianMinor: [0, 2, 3, 6, 7, 8, 11],
+            persian: [0, 1, 4, 5, 6, 8, 11]
+        };
+
+        function updateNotes() {
+            NOTES = [];
+            const scale = document.getElementById('scale').value;
+            const intervals = SCALES[scale];
+            let octave = 0;
+            let noteIndex = 0;
+            while (NOTES.length < NUM_THREADS) {
+                const semitone = intervals[noteIndex % intervals.length];
+                const freq = C2 * Math.pow(2, octave + semitone / 12);
+                NOTES.push(freq);
+                noteIndex++;
+                if (noteIndex % intervals.length === 0) octave++;
+            }
         }
+        updateNotes();
 
-        // Colors for C, Eb, F, G, Bb
-        const COLORS = ['#4a3b6e', '#5e548e', '#9f86c0', '#be95c4', '#e0b1cb'];
+        // Colors for threads
+        let COLORS = ['#4a3b6e', '#5e548e', '#9f86c0', '#be95c4', '#e0b1cb'];
 
-        // Reverb
+        // Reverb with gain control
         const reverb = audioCtx.createConvolver();
+        const reverbGain = audioCtx.createGain();
+        reverbGain.gain.value = 1;
         function createImpulseResponse() {
             const length = audioCtx.sampleRate * 1.0;
             const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
@@ -73,6 +207,26 @@
             reverb.buffer = impulse;
         }
         createImpulseResponse();
+
+        // Ping-pong delay setup
+        const delayLeft = audioCtx.createDelay();
+        const delayRight = audioCtx.createDelay();
+        const feedback = audioCtx.createGain();
+        const merger = audioCtx.createChannelMerger(2);
+
+        delayLeft.delayTime.value = 0.25;
+        delayRight.delayTime.value = 0.5;
+        feedback.gain.value = 0.5;
+
+        delayLeft.connect(delayRight);
+        delayRight.connect(feedback);
+        feedback.connect(delayLeft);
+
+        delayLeft.connect(merger, 0, 0);
+        delayRight.connect(merger, 0, 1);
+        merger.connect(reverb);
+        reverb.connect(reverbGain);
+        reverbGain.connect(audioCtx.destination);
 
         // Interaction position
         let pointer = { x: 0, y: 0, prevX: 0, prevY: 0, active: false };
@@ -128,6 +282,7 @@
                 }
                 threads.push(thread);
             }
+            updateNotes();
         }
 
         // Constraint function
@@ -154,16 +309,26 @@
             }
         }
 
-        // Play a note with pitch-adjusted volume
+        // Play a note with distinct oscillator type zones
         function playNote(frequency) {
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
 
             oscillator.connect(gainNode);
-            gainNode.connect(reverb);
-            reverb.connect(audioCtx.destination);
+            gainNode.connect(delayLeft);
 
-            oscillator.type = 'sine';
+            const screenHeight = canvas.height;
+            const yRatio = pointer.y / screenHeight;
+            if (yRatio < 0.25) {
+                oscillator.type = 'sine'; // Top 25%: Smooth
+            } else if (yRatio < 0.5) {
+                oscillator.type = 'triangle'; // Next 25%: Soft
+            } else if (yRatio < 0.75) {
+                oscillator.type = 'square'; // Next 25%: Bright
+            } else {
+                oscillator.type = 'sawtooth'; // Bottom 25%: Edgy
+            }
+
             oscillator.frequency.value = frequency;
 
             const maxVolume = 1.0;
@@ -178,6 +343,67 @@
 
             oscillator.start(now);
             oscillator.stop(now + 0.6);
+        }
+
+        // Unlock audio context
+        function unlockAudioContext() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    console.log('AudioContext resumed');
+                });
+            }
+        }
+
+        // Randomize all parameters
+        function randomizeAll() {
+            GRAVITY = Math.random() * 0.9 + 0.1;
+            document.getElementById('gravity').value = GRAVITY;
+            document.getElementById('gravityValue').textContent = GRAVITY.toFixed(1);
+
+            SEGMENT_LENGTH = Math.floor(Math.random() * 16) + 5;
+            document.getElementById('nodes').value = SEGMENT_LENGTH;
+            document.getElementById('nodesValue').textContent = SEGMENT_LENGTH;
+
+            MOUSE_RADIUS = Math.floor(Math.random() * 151) + 50;
+            document.getElementById('mouseRadius').value = MOUSE_RADIUS;
+            document.getElementById('mouseRadiusValue').textContent = MOUSE_RADIUS;
+
+            MOUSE_FORCE = Math.random() * 2.5 + 0.5;
+            document.getElementById('mouseForce').value = MOUSE_FORCE;
+            document.getElementById('mouseForceValue').textContent = MOUSE_FORCE.toFixed(1);
+
+            NUM_THREADS = Math.floor(Math.random() * 27) + 10;
+            document.getElementById('numThreads').value = NUM_THREADS;
+            document.getElementById('numThreadsValue').textContent = NUM_THREADS;
+
+            THREAD_WIDTH = Math.floor(Math.random() * 10) + 1;
+            document.getElementById('threadWidth').value = THREAD_WIDTH;
+            document.getElementById('threadWidthValue').textContent = THREAD_WIDTH;
+
+            reverbGain.gain.value = Math.random();
+            document.getElementById('reverbAmount').value = reverbGain.gain.value;
+            document.getElementById('reverbAmountValue').textContent = reverbGain.gain.value.toFixed(1);
+
+            delayLeft.delayTime.value = Math.random() * 0.4 + 0.1;
+            document.getElementById('delayLeft').value = delayLeft.delayTime.value;
+            document.getElementById('delayLeftValue').textContent = delayLeft.delayTime.value.toFixed(2);
+
+            delayRight.delayTime.value = Math.random() * 0.4 + 0.1;
+            document.getElementById('delayRight').value = delayRight.delayTime.value;
+            document.getElementById('delayRightValue').textContent = delayRight.delayTime.value.toFixed(2);
+
+            const scaleOptions = Object.keys(SCALES);
+            const randomScale = scaleOptions[Math.floor(Math.random() * scaleOptions.length)];
+            document.getElementById('scale').value = randomScale;
+
+            COLORS = Array(5).fill().map(() => {
+                const r = Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+                const g = Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+                const b = Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+                return `#${r}${g}${b}`;
+            });
+            updateNotes();
+            initThreads();
         }
 
         // Mouse events
@@ -211,6 +437,7 @@
             pointer.x = touch.clientX - rect.left;
             pointer.y = touch.clientY - rect.top;
             pointer.active = true;
+            unlockAudioContext();
         });
 
         canvas.addEventListener('touchmove', (e) => {
@@ -241,15 +468,82 @@
             initThreads();
         });
 
-        // Start screen handler with fade-out
+        // Start screen handler
         startScreen.addEventListener('click', () => {
             started = true;
+            unlockAudioContext();
             startScreen.style.opacity = '0';
             setTimeout(() => {
                 startScreen.style.display = 'none';
                 initThreads();
                 animate();
             }, 500);
+        });
+
+        // Controls handlers
+        toggleControls.addEventListener('click', () => {
+            controls.classList.toggle('open');
+        });
+
+        document.getElementById('gravity').addEventListener('input', (e) => {
+            GRAVITY = parseFloat(e.target.value);
+            document.getElementById('gravityValue').textContent = GRAVITY;
+        });
+
+        document.getElementById('nodes').addEventListener('input', (e) => {
+            SEGMENT_LENGTH = parseInt(e.target.value);
+            document.getElementById('nodesValue').textContent = SEGMENT_LENGTH;
+            initThreads();
+        });
+
+        document.getElementById('mouseRadius').addEventListener('input', (e) => {
+            MOUSE_RADIUS = parseInt(e.target.value);
+            document.getElementById('mouseRadiusValue').textContent = MOUSE_RADIUS;
+        });
+
+        document.getElementById('mouseForce').addEventListener('input', (e) => {
+            MOUSE_FORCE = parseFloat(e.target.value);
+            document.getElementById('mouseForceValue').textContent = MOUSE_FORCE;
+        });
+
+        document.getElementById('numThreads').addEventListener('input', (e) => {
+            NUM_THREADS = parseInt(e.target.value);
+            document.getElementById('numThreadsValue').textContent = NUM_THREADS;
+            initThreads();
+        });
+
+        document.getElementById('threadWidth').addEventListener('input', (e) => {
+            THREAD_WIDTH = parseInt(e.target.value);
+            document.getElementById('threadWidthValue').textContent = THREAD_WIDTH;
+        });
+
+        document.getElementById('reverbAmount').addEventListener('input', (e) => {
+            reverbGain.gain.value = parseFloat(e.target.value);
+            document.getElementById('reverbAmountValue').textContent = reverbGain.gain.value;
+        });
+
+        document.getElementById('delayLeft').addEventListener('input', (e) => {
+            delayLeft.delayTime.value = parseFloat(e.target.value);
+            document.getElementById('delayLeftValue').textContent = delayLeft.delayTime.value;
+        });
+
+        document.getElementById('delayRight').addEventListener('input', (e) => {
+            delayRight.delayTime.value = parseFloat(e.target.value);
+            document.getElementById('delayRightValue').textContent = delayRight.delayTime.value;
+        });
+
+        document.getElementById('scale').addEventListener('change', (e) => {
+            updateNotes();
+            COLORS = Array(5).fill().map(() => {
+                const r = Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+                const g = Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+                const b = Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+                return `#${r}${g}${b}`;
+            });
+        });
+
+        document.getElementById('randomizeAll').addEventListener('click', () => {
+            randomizeAll();
         });
 
         // Simulation loop
@@ -270,7 +564,7 @@
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     if (distance < minDistance) minDistance = distance;
                 });
-                const brightness = Math.max(50, 255 * (1 - Math.min(minDistance / MOUSE_RADIUS, 1)));
+                const brightness = minDistance < HIGHLIGHT_RADIUS ? Math.max(50, 255 * (1 - minDistance / HIGHLIGHT_RADIUS)) : 50;
 
                 const baseColor = COLORS[index % 5];
                 const [r, g, b] = [
@@ -286,7 +580,7 @@
                     ctx.lineTo(thread[i].x, thread[i].y);
                 }
                 ctx.strokeStyle = color;
-                ctx.lineWidth = THREAD_WIDTH; // 4px on mobile
+                ctx.lineWidth = THREAD_WIDTH;
                 ctx.stroke();
             });
 
