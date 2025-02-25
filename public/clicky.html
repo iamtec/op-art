@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generative Art with Explosions</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #141414;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    #randomizeBtn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #333;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 10;
+    }
+    #randomizeBtn:hover {
+      background-color: #555;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
+</head>
+<body>
+  <button id="randomizeBtn">Randomize</button>
+  <script>
+    let sketch = function(p) {
+      let noiseScale = 0.01;
+      let time = 0;
+      let explosions = [];
+      let osc, reverb, delay;
+      let soundStarted = false;
+      let baseHueRange = 360;
+      let baseSat = 90;
+      let gridDensity = 160;
+      let mouseRadius = 8;
+      let mouseHueRange = 720;
+      let explosionStrength = 1.5;
+      let isDragging = false;
+      let currentNoteIndex = 3; // Start near middle of scale (G#3)
+
+      // C# minor pentatonic scale, down 5 semitones from F#, top 3 removed
+      let pentatonicNotes = [
+        138.59, // C#3 (0)
+        164.81, // E3  (1)
+        184.99, // F#3 (2)
+        207.65, // G#3 (3)
+        246.94, // B3  (4)
+        277.18, // C#4 (5)
+        329.63, // E4  (6)
+        369.99  // F#4 (7)
+      ];
+
+      p.preload = function() {
+        // p5.sound loaded via CDN
+      };
+
+      p.setup = function() {
+        p.createCanvas(p.windowWidth, p.windowHeight);
+        p.colorMode(p.HSB, 360, 100, 100);
+        p.background(20);
+        
+        osc = new p5.Oscillator('sine');
+        osc.amp(0);
+        
+        delay = new p5.Delay();
+        reverb = new p5.Reverb();
+
+        document.getElementById('randomizeBtn').addEventListener('click', randomizeParameters);
+      };
+
+      p.draw = function() {
+        p.background(20, 20);
+        
+        let gridSize = p.width / gridDensity;
+        
+        for (let x = 0; x < p.width; x += gridSize) {
+          for (let y = 0; y < p.height; y += gridSize) {
+            let n1 = p.noise(x * noiseScale, y * noiseScale, time);
+            let baseHue = p.map(n1, 0, 1, 0, baseHueRange);
+            
+            let n2 = p.noise(x * 0.005 + 100, y * 0.005 + 100, time * 0.5);
+            let offsetX = p.map(n2, 0, 1, -15, 15);
+            let offsetY = p.map(n2, 0, 1, -15, 15);
+            
+            let mx = p.touches.length > 0 ? p.touches[0].x : p.mouseX;
+            let my = p.touches.length > 0 ? p.touches[0].y : p.mouseY;
+            let d = p.dist(x, y, mx, my);
+            let maxRadius = p.width / mouseRadius;
+            let hue = baseHue;
+            let sat = baseSat;
+            
+            if (d < maxRadius) {
+              let fade = p.map(d, 0, maxRadius, 1, 0);
+              let hueRange = p.map(mx, 0, p.width, 0, mouseHueRange);
+              let mouseHue = p.map(n1, 0, 1, 0, hueRange);
+              let mouseSat = p.map(my, 0, p.height, 50, 100);
+              hue = p.lerp(baseHue, mouseHue % 360, fade);
+              sat = p.lerp(baseSat, mouseSat, fade);
+            }
+            
+            for (let i = explosions.length - 1; i >= 0; i--) {
+              let exp = explosions[i];
+              let expDist = p.dist(x, y, exp.x, exp.y);
+              if (expDist < exp.radius) {
+                let arcFade = p.map(expDist, 0, exp.radius, 1, 0) * exp.life;
+                hue = p.lerp(hue, (hue + exp.hueOffset) % 360, arcFade * explosionStrength);
+                sat = p.lerp(sat, 0, arcFade * explosionStrength);
+              }
+            }
+            
+            p.noStroke();
+            p.fill(hue, sat, 100, 80);
+            p.rect(x + offsetX, y + offsetY, gridSize, gridSize);
+          }
+        }
+        
+        for (let i = explosions.length - 1; i >= 0; i--) {
+          explosions[i].radius += 5;
+          explosions[i].life -= 0.02;
+          if (explosions[i].life <= 0) {
+            explosions.splice(i, 1);
+          }
+        }
+        
+        // Update explosion position and pitch while dragging
+        if (isDragging) {
+          let mx = p.touches.length > 0 ? p.touches[0].x : p.mouseX;
+          let my = p.touches.length > 0 ? p.touches[0].y : p.mouseY;
+          explosions.push({
+            x: mx,
+            y: my,
+            radius: 0,
+            life: 1,
+            hueOffset: p.random(90, 270)
+          });
+          
+          // Adjust pitch based on Y position
+          let pitchIndex = p.floor(p.map(my, p.height, 0, 0, pentatonicNotes.length - 1));
+          currentNoteIndex = p.constrain(pitchIndex, 0, pentatonicNotes.length - 1);
+          if (soundStarted) {
+            osc.freq(pentatonicNotes[currentNoteIndex]);
+          }
+        }
+        
+        time += 0.005;
+      };
+
+      p.windowResized = function() {
+        p.resizeCanvas(p.windowWidth, p.windowHeight);
+      };
+
+      function startExplosion(x, y) {
+        explosions.push({
+          x: x,
+          y: y,
+          radius: 0,
+          life: 1,
+          hueOffset: p.random(90, 270)
+        });
+        
+        if (!soundStarted) {
+          osc.start();
+          delay.process(osc, 0.12, 0.7, 2300);
+          reverb.process(delay, 3, 2);
+          soundStarted = true;
+        }
+        
+        let delayTime = p.random(0.05, 1);
+        let feedback = p.random(0.4, 0.7);
+        let filterFreq = p.random(1000, 4000);
+        delay.delayTime(delayTime);
+        delay.feedback(feedback);
+        delay.filter(filterFreq);
+        
+        currentNoteIndex = p.floor(pentatonicNotes.length / 2); // Start at middle (B3)
+        osc.freq(pentatonicNotes[currentNoteIndex]);
+        let fadeInTime = p.random(0.1, 0.5);
+        osc.amp(0.5, fadeInTime); // Random fade-in
+      }
+
+      p.mousePressed = function() {
+        if (p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height) {
+          startExplosion(p.mouseX, p.mouseY);
+          isDragging = true;
+        }
+        return false;
+      };
+
+      p.mouseReleased = function() {
+        if (soundStarted) {
+          osc.amp(0, 0.5); // Fade out over 0.5s when released
+        }
+        isDragging = false;
+        return false;
+      };
+
+      p.touchStarted = function() {
+        if (p.touches.length > 0) {
+          let tx = p.touches[0].x;
+          let ty = p.touches[0].y;
+          if (tx >= 0 && tx <= p.width && ty >= 0 && ty <= p.height) {
+            startExplosion(tx, ty);
+            isDragging = true;
+          }
+        }
+        return false;
+      };
+
+      p.touchEnded = function() {
+        if (soundStarted) {
+          osc.amp(0, 0.5); // Fade out over 0.5s when touch ends
+        }
+        isDragging = false;
+        return false;
+      };
+
+      function randomizeParameters() {
+        baseHueRange = p.random(180, 720);
+        baseSat = p.random(50, 90);
+        gridDensity = p.random(100, 240);
+        mouseRadius = p.random(4, 12);
+        mouseHueRange = p.random(360, 1080);
+        explosionStrength = p.random(1, 2.5);
+        noiseScale = p.random(0.005, 0.02);
+      }
+    };
+
+    new p5(sketch);
+  </script>
+</body>
+</html>
