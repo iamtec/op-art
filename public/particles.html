@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Field with Click-Activated Attraction</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: white;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <label>Particles: <input type="range" id="particleSlider" min="100" max="1000" value="300"></label><br>
+    <label>Noise Scale: <input type="range" id="noiseSlider" min="0.01" max="0.3" step="0.01" value="0.1"></label><br>
+    <label>Normal Speed: <input type="range" id="speedSlider" min="1" max="10" value="5"></label><br>
+    <label>Boosted Speed: <input type="range" id="boostedSpeedSlider" min="5" max="20" value="10"></label>
+</div>
+
+<script>
+let particles = [];
+let flowField = [];
+let gridSize = 20;
+let cols, rows;
+let zOffset = 0;
+let numParticles = 300;
+let noiseScale = 0.1;
+let attractionStrength = 0.8;
+let mouseInfluenceRadius = 800;
+let speedBoost = false;
+let normalSpeed = 5;
+let boostedSpeed = 10;
+let trails = [];
+let fadeDuration = 600;
+let mouseAttractionActive = false;
+
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    cols = floor(width / gridSize);
+    rows = floor(height / gridSize);
+    flowField = new Array(cols * rows);
+    for (let i = 0; i < numParticles; i++) {
+        particles.push(new Particle());
+    }
+    background(255);
+}
+
+function draw() {
+    background(255, 255, 255, 90);
+    let yOffset = 0;
+    for (let y = 0; y < rows; y++) {
+        let xOffset = 0;
+        for (let x = 0; x < cols; x++) {
+            let index = x + y * cols;
+            let angle = noise(xOffset, yOffset, zOffset) * TWO_PI * 4;
+            let v = p5.Vector.fromAngle(angle);
+            v.setMag(1);
+            flowField[index] = v;
+            xOffset += noiseScale;
+        }
+        yOffset += noiseScale;
+    }
+    zOffset += 0.005;
+
+    for (let i = trails.length - 1; i >= 0; i--) {
+        let t = trails[i];
+        stroke(30, 30, 30, map(frameCount - t.frame, 0, fadeDuration, 15, 0));
+        strokeWeight(t.strokeWeight);
+        line(t.pos1.x, t.pos1.y, t.pos2.x, t.pos2.y);
+        if (frameCount - t.frame > fadeDuration) {
+            trails.splice(i, 1);
+        }
+    }
+    for (let particle of particles) {
+        particle.follow(flowField);
+        if (mouseAttractionActive) {
+            particle.attractToMouse();
+        }
+        particle.update();
+        particle.show();
+    }
+}
+
+class Particle {
+    attractToMouse() {
+        let mouse = createVector(mouseX, mouseY);
+        let force = p5.Vector.sub(mouse, this.pos);
+        let distance = force.mag();
+        
+        if (distance < mouseInfluenceRadius) {
+            force.normalize();
+            let strength = map(distance, 0, mouseInfluenceRadius, 2, 0);
+            force.mult(strength * attractionStrength);
+            this.applyForce(force);
+        }
+    }
+    constructor() {
+        this.pos = createVector(random(width), random(height));
+        this.vel = createVector(0, 0);
+        this.acc = createVector(0, 0);
+        this.maxSpeed = normalSpeed;
+        this.prevPos = this.pos.copy();
+    }
+    follow(vectors) {
+        let x = floor(this.pos.x / gridSize);
+        let y = floor(this.pos.y / gridSize);
+        let index = x + y * cols;
+        let force = vectors[index];
+        this.applyForce(force);
+    }
+    applyForce(force) {
+        this.acc.add(force);
+    }
+    update() {
+        this.vel.add(this.acc);
+        this.vel.limit(this.maxSpeed);
+        this.pos.add(this.vel);
+        this.acc.mult(0);
+        trails.push({
+            pos1: this.prevPos.copy(),
+            pos2: this.pos.copy(),
+            strokeWeight: 1.5,
+            frame: frameCount
+        });
+        this.prevPos.set(this.pos);
+    }
+    show() {
+        fill(50);
+        noStroke();
+        ellipse(this.pos.x, this.pos.y, 2, 2);
+    }
+}
+
+function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+}
+function mousePressed() {
+    mouseAttractionActive = true;
+}
+function mouseReleased() {
+    mouseAttractionActive = false;
+}
+
+// Add event listeners for controls
+document.getElementById('particleSlider').addEventListener('input', (e) => {
+    numParticles = parseInt(e.target.value);
+    particles = [];
+    for (let i = 0; i < numParticles; i++) {
+        particles.push(new Particle());
+    }
+});
+
+document.getElementById('noiseSlider').addEventListener('input', (e) => {
+    noiseScale = parseFloat(e.target.value);
+});
+
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+    normalSpeed = parseInt(e.target.value);
+    for (let particle of particles) {
+        particle.maxSpeed = normalSpeed;
+    }
+});
+
+document.getElementById('boostedSpeedSlider').addEventListener('input', (e) => {
+    boostedSpeed = parseInt(e.target.value);
+});
+</script>
+</body>
+</html>

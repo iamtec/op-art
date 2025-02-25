@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Field with Click-Activated Attraction</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+</head>
+<body>
+
+<script>
+var t, t2;
+
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    background(255);
+    t = 0;
+    t2 = 100; // Start t2 at a different value for variation
+}
+
+function draw() {
+    // Fade the background slightly
+    background(255, 5);
+
+    // First ellipse
+    var x1 = width * noise(t);
+    var y1 = height * noise(t + 5);
+    var r1 = 255 * noise(t + 10);
+    var g1 = 255 * noise(t + 15);
+    var b1 = 255 * noise(t + 20);
+
+    noStroke();
+    fill(r1, g1, b1, 150); // Add slight transparency for blending
+    ellipse(x1, y1, 120, 120);
+
+    // Second ellipse
+    var x2 = width * noise(t2);
+    var y2 = height * noise(t2 + 5);
+    var r2 = 255 * noise(t2 + 10);
+    var g2 = 255 * noise(t2 + 15);
+    var b2 = 255 * noise(t2 + 20);
+
+    fill(r2, g2, b2, 150);
+    ellipse(x2, y2, 120, 120);
+
+    // Increment Perlin noise offsets
+    t += 0.01;
+    t2 += 0.015; // Slightly different increment for variety
+}
+</script>
+
+</body>
+</html>
