@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step Sequencer</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        .grid { display: grid; grid-template-columns: repeat(9, 40px); gap: 5px; justify-content: center; margin-top: 20px; }
+        .step { width: 40px; height: 40px; border: 1px solid black; cursor: pointer; }
+        .active { background-color: blue; }
+        .controls { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Step Sequencer</h1>
+    <div class="grid" id="sequencer"></div>
+    <div class="controls">
+        <button id="play">Play</button>
+    </div>
+
+    <script>
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const tempo = 120;
+        const steps = 8;
+        const sounds = {
+            kick: 'assets/kick.wav',
+            snare: 'assets/snare.wav',
+            hihat: 'assets/hihat.wav',
+            clap: 'assets/clap.wav'
+        };
+        
+        let sequence = {};
+        let buffers = {};
+        let isPlaying = false;
+        let currentStep = 0;
+
+        async function loadSample(url) {
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            return audioContext.decodeAudioData(arrayBuffer);
+        }
+
+        async function loadBuffers() {
+            for (const [key, url] of Object.entries(sounds)) {
+                buffers[key] = await loadSample(url);
+            }
+        }
+
+        function createSequencer() {
+            const sequencer = document.getElementById("sequencer");
+            Object.keys(sounds).forEach(sound => {
+                sequence[sound] = new Array(steps).fill(false);
+                
+                const label = document.createElement("div");
+                label.textContent = sound;
+                sequencer.appendChild(label);
+                
+                for (let i = 0; i < steps; i++) {
+                    const step = document.createElement("div");
+                    step.classList.add("step");
+                    step.dataset.sound = sound;
+                    step.dataset.step = i;
+                    step.addEventListener("click", toggleStep);
+                    sequencer.appendChild(step);
+                }
+            });
+        }
+
+        function toggleStep(event) {
+            const sound = event.target.dataset.sound;
+            const step = event.target.dataset.step;
+            sequence[sound][step] = !sequence[sound][step];
+            event.target.classList.toggle("active");
+        }
+
+        function playStep(step) {
+            Object.keys(sequence).forEach(sound => {
+                if (sequence[sound][step] && buffers[sound]) {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = buffers[sound];
+                    source.connect(audioContext.destination);
+                    source.start();
+                }
+            });
+        }
+
+        function startSequencer() {
+            if (isPlaying) return;
+            isPlaying = true;
+            const interval = setInterval(() => {
+                playStep(currentStep);
+                currentStep = (currentStep + 1) % steps;
+            }, (60 / tempo) * 1000);
+
+            document.getElementById("play").addEventListener("click", () => {
+                clearInterval(interval);
+                isPlaying = false;
+            });
+        }
+
+        document.getElementById("play").addEventListener("click", startSequencer);
+        loadBuffers();
+        createSequencer();
+    </script>
+</body>
+</html>
