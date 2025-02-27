@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>p5 & Tuna.js Visualization (No Overdrive/Compressor)</title>
+  <!-- Load p5.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+  <!-- Load Tuna from local file -->
+  <script src="tuna-min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Hidden audio element -->
+  <audio id="audio" src="sample.wav" crossorigin="anonymous"></audio>
+  
+  <!-- Audio context and effects chain -->
+  <script>
+    // Global audio variables
+    let audioCtx, audioElement, track;
+    let filter, delay, chorus, wahwah, phaser, pingPongDelay;
+    let audioStarted = false;
+    
+    window.addEventListener('load', function(){
+      // Create AudioContext and set up audio element (auto-loop)
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioElement = document.getElementById('audio');
+      audioElement.loop = true;
+      track = audioCtx.createMediaElementSource(audioElement);
+      let tuna = new Tuna(audioCtx);
+      
+      // Create effects with default (neutral) parameters.
+      filter = new tuna.Filter({
+        frequency: 22050,  // Neutral for a lowpass is high cutoff.
+        Q: 1,
+        gain: 0,
+        filterType: "lowpass",
+        bypass: 0,
+        wet: 1
+      });
+      
+      delay = new tuna.Delay({
+        delayTime: 150,
+        feedback: 0.45,
+        bypass: 0,
+        wet: 1
+      });
+      
+      chorus = new tuna.Chorus({
+        rate: 1.5,
+        feedback: 0.2,
+        delay: 0.0045,
+        bypass: 0,
+        wet: 1
+      });
+      
+      wahwah = new tuna.WahWah({
+        automode: true,
+        baseFrequency: 0.5,
+        excursionOctaves: 2,
+        sweep: 0.2,
+        resonance: 10,
+        sensitivity: 0.5,
+        bypass: 0,
+        wet: 1
+      });
+      
+      phaser = new tuna.Phaser({
+        rate: 1.2,
+        depth: 0.3,
+        feedback: 0.2,
+        baseModulationFrequency: 700,
+        bypass: 0,
+        wet: 1
+      });
+      
+      pingPongDelay = new tuna.PingPongDelay({
+        feedback: 0.3,
+        delayTime: 150,
+        bypass: 0,
+        wet: 1
+      });
+      
+      // Chain the effects
+      track.connect(filter.input);
+      filter.connect(delay.input);
+      delay.connect(chorus.input);
+      chorus.connect(wahwah.input);
+      wahwah.connect(phaser.input);
+      phaser.connect(pingPongDelay.input);
+      pingPongDelay.connect(audioCtx.destination);
+      
+      // (Do not call play() yet—wait for user interaction.)
+    });
+  </script>
+  
+  <!-- p5 visualization and interaction -->
+  <script>
+    let nodeX, nodeY;
+    const nodeRadius = 20;
+    let dragging = false;
+    let offsetX = 0, offsetY = 0;
+    
+    function setup(){
+      createCanvas(600, 600);
+      nodeX = width / 2;
+      nodeY = height / 2;
+      textFont('sans-serif');
+    }
+    
+    function draw(){
+      background(220);
+      
+      // Draw quadrant lines
+      stroke(0);
+      line(width/2, 0, width/2, height);
+      line(0, height/2, width, height/2);
+      
+      // Label quadrants with controlled effects
+      textAlign(CENTER, CENTER);
+      noStroke();
+      textSize(12);
+      fill(0);
+      text("Top Left:\nFilter Frequency & Q", width/4, height/4);
+      text("Top Right:\nDelay Feedback & Chorus Rate", 3 * width/4, height/4);
+      text("Bottom Left:\nWahWah Base Freq", width/4, 3 * height/4);
+      text("Bottom Right:\nPhaser Depth & Ping Pong Feedback", 3 * width/4, 3 * height/4);
+      
+      // If the node is near the center, set all effects to "no effect" (dry).
+      if (abs(nodeX - width/2) < 50 && abs(nodeY - height/2) < 50) {
+        filter.wet = 0;
+        delay.wet = 0;
+        chorus.wet = 0;
+        wahwah.wet = 0;
+        phaser.wet = 0;
+        pingPongDelay.wet = 0;
+      } else {
+        // Otherwise, set wet mix to 1.
+        filter.wet = 1;
+        delay.wet = 1;
+        chorus.wet = 1;
+        wahwah.wet = 1;
+        phaser.wet = 1;
+        pingPongDelay.wet = 1;
+        
+        // Map quadrant positions to parameters.
+        // Top Left: Filter frequency and Q.
+        if (nodeX < width/2 && nodeY < height/2) {
+          filter.frequency = map(nodeX, 0, width/2, 20, 22050);
+          filter.Q = map(nodeY, 0, height/2, 0.001, 30);
+        }
+        // Top Right: Delay feedback and Chorus rate.
+        else if (nodeX >= width/2 && nodeY < height/2) {
+          delay.feedback = map(nodeX, width/2, width, 0, 1);
+          chorus.rate = map(nodeY, 0, height/2, 8, 0.01);
+        }
+        // Bottom Left: WahWah base frequency.
+        else if (nodeX < width/2 && nodeY >= height/2) {
+          wahwah.baseFrequency = map(nodeX, 0, width/2, 0, 1);
+        }
+        // Bottom Right: Phaser depth and Ping Pong Delay feedback.
+        else if (nodeX >= width/2 && nodeY >= height/2) {
+          phaser.depth = map(nodeX, width/2, width, 0, 1);
+          pingPongDelay.feedback = map(nodeY, height/2, height, 0, 1);
+        }
+      }
+      
+      // Draw the draggable node.
+      fill(255, 0, 0);
+      ellipse(nodeX, nodeY, nodeRadius * 2);
+      
+      // Display current parameter values.
+      fill(0);
+      textAlign(LEFT, TOP);
+      textSize(14);
+      text("Filter Frequency: " + nf(filter.frequency, 1, 2), 10, 10);
+      text("Filter Q: " + nf(filter.Q, 1, 2), 10, 30);
+      text("Delay Feedback: " + nf(delay.feedback, 1, 2), 10, 50);
+      text("Chorus Rate: " + nf(chorus.rate, 1, 2), 10, 70);
+      text("WahWah Base Freq: " + nf(wahwah.baseFrequency, 1, 2), 10, 90);
+      text("Phaser Depth: " + nf(phaser.depth, 1, 2), 10, 110);
+      text("Ping Pong Feedback: " + nf(pingPongDelay.feedback, 1, 2), 10, 130);
+    }
+    
+    function mousePressed(){
+      // Start audio on first interaction.
+      if (!audioStarted && audioCtx && audioElement) {
+        audioCtx.resume().then(() => {
+          audioElement.play();
+          audioStarted = true;
+        });
+      }
+      
+      // Check if mouse is on the node.
+      let d = dist(mouseX, mouseY, nodeX, nodeY);
+      if (d < nodeRadius) {
+        dragging = true;
+        offsetX = nodeX - mouseX;
+        offsetY = nodeY - mouseY;
+      } else {
+        // If tapping away from the node, move the node immediately.
+        nodeX = constrain(mouseX, nodeRadius, width - nodeRadius);
+        nodeY = constrain(mouseY, nodeRadius, height - nodeRadius);
+      }
+    }
+    
+    function mouseDragged(){
+      if (dragging) {
+        nodeX = constrain(mouseX + offsetX, nodeRadius, width - nodeRadius);
+        nodeY = constrain(mouseY + offsetY, nodeRadius, height - nodeRadius);
+      }
+    }
+    
+    function mouseReleased(){
+      dragging = false;
+    }
+  </script>
+</body>
+</html>
