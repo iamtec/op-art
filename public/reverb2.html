@@ -91,7 +91,6 @@
 
   function setup(){
     createCanvas(windowWidth, windowHeight);
-    // Set textFont to Cormorant so canvas text uses the Google Web Font.
     textFont("Cormorant");
     // Initialize repulsion offsets
     offset1 = createVector(0,0);
@@ -359,6 +358,16 @@
     size3 = map(finalX3, 0, width, 50, 200);
     size4 = map(finalY4, 0, height, 50, 200);
 
+    // Constrain positions so balls remain within the canvas
+    finalX1 = constrain(finalX1, size1/2, width - size1/2);
+    finalY1 = constrain(finalY1, size1/2, height - size1/2);
+    finalX2 = constrain(finalX2, size2/2, width - size2/2);
+    finalY2 = constrain(finalY2, size2/2, height - size2/2);
+    finalX3 = constrain(finalX3, size3/2, width - size3/2);
+    finalY3 = constrain(finalY3, size3/2, height - size3/2);
+    finalX4 = constrain(finalX4, size4/2, width - size4/2);
+    finalY4 = constrain(finalY4, size4/2, height - size4/2);
+
     noStroke();
     // ---------------- Draw System 1 Ball (horizontal control) ----------------
     let r1 = 255 * noise(t + 10);
@@ -448,13 +457,12 @@
 
     // ---------------- Display "click a ball to continue" Message ----------------
     if(startMessageAlpha > 0){
-      // Set text color to #ccad9e with the current alpha.
       let msgColor = color("#ccad9e");
       msgColor.setAlpha(startMessageAlpha);
       fill(msgColor);
       textSize(32);
       textAlign(CENTER, CENTER);
-      text("Tap on a ball to continue", width/2, height/2);
+      text("click a ball to continue", width/2, height/2);
       if(!messageActive){
         startMessageAlpha -= 5;
       }
@@ -485,6 +493,17 @@
 
   function mouseReleased(){
     mousePressStart = 0;
+  }
+
+  // Mobile interaction: map touch events to mouse events.
+  function touchStarted(){
+    mousePressed();
+    return false;
+  }
+  
+  function touchEnded(){
+    mouseReleased();
+    return false;
   }
 
   function windowResized(){
