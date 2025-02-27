@@ -207,7 +207,8 @@
     let baseY6 = height * noise(t6 + 5);
 
     // ---------------- Update Offsets for Repulsion ----------------
-    if(mouseIsPressed){
+    // Repulsion kicks in only if the mouse has been held for > 0.5 sec.
+    if(mouseIsPressed && mousePressStart && (millis() - mousePressStart >= 500)){
       let mousePos = createVector(mouseX, mouseY);
       let pos1 = createVector(baseX1, baseY1).add(offset1);
       let diff1 = p5.Vector.sub(pos1, mousePos);
