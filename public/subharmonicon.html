@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Classic Synth: Subharmonicon + Lyra‑8 + Effects + ADSR Demo</title>
+  <style>
+    body {
+      background: #111;
+      color: #0f0;
+      font-family: "Courier New", Courier, monospace;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1, h2 {
+      text-align: center;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    .panel {
+      background: #222;
+      border: 2px solid #444;
+      border-radius: 10px;
+      padding: 15px;
+      margin: 10px;
+      box-shadow: 0 0 10px #000;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .control {
+      margin: 10px;
+      padding: 10px;
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 8px;
+      width: 150px;
+      text-align: center;
+    }
+    .control label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.85em;
+    }
+    /* Classic synth “knob” styling for range inputs */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 80px;
+      height: 80px;
+      margin: 0 auto;
+      display: block;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 8px;
+      background: #555;
+      border-radius: 4px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      background: #0f0;
+      border: 2px solid #222;
+      border-radius: 50%;
+      margin-top: -6px;
+      box-shadow: 0 0 5px #0f0;
+    }
+    input[type=range]:focus {
+      outline: none;
+    }
+    select {
+      background: #333;
+      color: #0f0;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 5px;
+      width: 100%;
+    }
+    button {
+      background: #0f0;
+      color: #111;
+      border: none;
+      padding: 10px 20px;
+      font-size: 1em;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 20px auto;
+      display: block;
+      box-shadow: 0 0 10px #0f0;
+    }
+    button:hover {
+      background: #afa;
+    }
+    .status {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 1.1em;
+    }
+    /* Sequencer Grid */
+    #sequencerGrid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .seq-step {
+      background: #333;
+      border: 1px solid #555;
+      margin: 5px;
+      padding: 10px;
+      border-radius: 8px;
+      width: 120px;
+      text-align: center;
+    }
+    .seq-step label {
+      font-size: 0.8em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Classic Synth: Subharmonicon + Lyra‑8 + Effects + ADSR Demo</h1>
+    
+    <div class="panel">
+      <h2>Oscillators & Filter</h2>
+      <div class="controls">
+        <div class="control">
+          <label for="osc1Freq">Oscillator 1 (Hz)</label>
+          <input type="range" id="osc1Freq" min="50" max="1000" value="220">
+        </div>
+        <div class="control">
+          <label for="osc2Freq">Oscillator 2 (Hz)</label>
+          <input type="range" id="osc2Freq" min="50" max="1000" value="330">
+        </div>
+        <div class="control">
+          <label for="osc1Waveform">Osc1 Waveform</label>
+          <select id="osc1Waveform">
+            <option value="sine">Sine</option>
+            <option value="square">Square</option>
+            <option value="sawtooth" selected>Sawtooth</option>
+            <option value="triangle">Triangle</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="osc2Waveform">Osc2 Waveform</label>
+          <select id="osc2Waveform">
+            <option value="sine">Sine</option>
+            <option value="square">Square</option>
+            <option value="sawtooth" selected>Sawtooth</option>
+            <option value="triangle">Triangle</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="subOsc1Ratio">Sub Osc1 Ratio</label>
+          <select id="subOsc1Ratio">
+            <option value="2" selected>1/2</option>
+            <option value="3">1/3</option>
+            <option value="4">1/4</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="subOsc2Ratio">Sub Osc2 Ratio</label>
+          <select id="subOsc2Ratio">
+            <option value="2" selected>1/2</option>
+            <option value="3">1/3</option>
+            <option value="4">1/4</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="subOsc1Waveform">Sub Osc1 Waveform</label>
+          <select id="subOsc1Waveform">
+            <option value="sine">Sine</option>
+            <option value="square" selected>Square</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="triangle">Triangle</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="subOsc2Waveform">Sub Osc2 Waveform</label>
+          <select id="subOsc2Waveform">
+            <option value="sine">Sine</option>
+            <option value="square" selected>Square</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="triangle">Triangle</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="filterCutoff">Filter Cutoff (Hz)</label>
+          <input type="range" id="filterCutoff" min="100" max="5000" value="1000">
+        </div>
+        <div class="control">
+          <label for="filterRes">Filter Resonance (Q)</label>
+          <input type="range" id="filterRes" min="0" max="20" value="1">
+        </div>
+      </div>
+    </div>
+    
+    <button id="startStop">Start</button>
+    
+    <div class="panel">
+      <h2>Sequencer</h2>
+      <div class="controls">
+        <div class="control">
+          <label for="seqInterval">Seq Interval (ms)</label>
+          <input type="range" id="seqInterval" min="100" max="1000" value="500">
+        </div>
+        <div class="control">
+          <label for="seqSteps">Steps</label>
+          <input type="range" id="seqSteps" min="2" max="16" value="8">
+        </div>
+      </div>
+      <div id="sequencerGrid"></div>
+      <div class="status">
+        Current Step: <span id="currentStep">0</span>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <h2>Modulation (LFO)</h2>
+      <div class="controls">
+        <div class="control">
+          <label for="lfoWaveform">LFO Waveform</label>
+          <select id="lfoWaveform">
+            <option value="sine" selected>Sine</option>
+            <option value="square">Square</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="triangle">Triangle</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="lfoFrequency">LFO Freq (Hz)</label>
+          <input type="range" id="lfoFrequency" min="0.1" max="10" step="0.1" value="2">
+        </div>
+        <div class="control">
+          <label for="lfoDepth">LFO Depth</label>
+          <input type="range" id="lfoDepth" min="0" max="100" value="20">
+        </div>
+        <div class="control">
+          <label for="lfoDest">LFO Dest.</label>
+          <select id="lfoDest">
+            <option value="none" selected>None</option>
+            <option value="osc1">Osc1 Freq</option>
+            <option value="osc2">Osc2 Freq</option>
+            <option value="filter">Filter Cutoff</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <h2>ADSR Envelope</h2>
+      <div class="controls">
+        <div class="control">
+          <label for="adsrAttack">Attack (s)</label>
+          <input type="range" id="adsrAttack" min="0" max="2" step="0.01" value="0.1">
+        </div>
+        <div class="control">
+          <label for="adsrDecay">Decay (s)</label>
+          <input type="range" id="adsrDecay" min="0" max="2" step="0.01" value="0.2">
+        </div>
+        <div class="control">
+          <label for="adsrSustain">Sustain (0–1)</label>
+          <input type="range" id="adsrSustain" min="0" max="1" step="0.01" value="0.7">
+        </div>
+        <div class="control">
+          <label for="adsrRelease">Release (s)</label>
+          <input type="range" id="adsrRelease" min="0" max="3" step="0.01" value="1">
+        </div>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <h2>Reverb</h2>
+      <div class="controls">
+        <div class="control">
+          <label for="reverbDecay">Decay (s)</label>
+          <input type="range" id="reverbDecay" min="1" max="10" step="0.1" value="3">
+        </div>
+        <div class="control">
+          <label for="reverbMix">Mix (%)</label>
+          <input type="range" id="reverbMix" min="0" max="100" value="30">
+        </div>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <h2>Ping Pong Delay</h2>
+      <div class="controls">
+        <div class="control">
+          <label for="delayTime">Delay Time (s)</label>
+          <input type="range" id="delayTime" min="0.1" max="1.5" step="0.01" value="0.5">
+        </div>
+        <div class="control">
+          <label for="delayFeedback">Feedback (%)</label>
+          <input type="range" id="delayFeedback" min="0" max="90" value="50">
+        </div>
+        <div class="control">
+          <label for="delayMix">Mix (%)</label>
+          <input type="range" id="delayMix" min="0" max="100" value="30">
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Create AudioContext and global variables
+    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let isPlaying = false;
+    let timerId;
+    let osc1, osc2, subOsc1, subOsc2;
+    let lfo, lfoGain;
+    
+    // Global gain nodes for ADSR envelopes (applied to oscillator outputs)
+    let primaryGain1, primaryGain2, subGain1, subGain2;
+    
+    // MASTER GAIN (final mix to destination)
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.5;
+    masterGain.connect(audioCtx.destination);
+    
+    // FILTER (Moog‑style low‑pass)
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = parseFloat(document.getElementById('filterCutoff').value);
+    filter.Q.value = parseFloat(document.getElementById('filterRes').value);
+    
+    // --- EFFECTS CHAIN ---
+    // The filter output is split into three branches: Dry, Reverb, Ping Pong Delay.
+    const dryGain = audioCtx.createGain();
+    dryGain.gain.value = 0.7;
+    filter.connect(dryGain);
+    dryGain.connect(masterGain);
+    
+    // Reverb branch
+    const reverbSend = audioCtx.createGain();
+    filter.connect(reverbSend);
+    const convolver = audioCtx.createConvolver();
+    const reverbWetGain = audioCtx.createGain();
+    reverbWetGain.gain.value = parseFloat(document.getElementById('reverbMix').value) / 100;
+    reverbSend.connect(convolver);
+    convolver.connect(reverbWetGain);
+    reverbWetGain.connect(masterGain);
+    
+    // Ping Pong Delay branch (cross‑feedback design)
+    const pingPongSend = audioCtx.createGain();
+    filter.connect(pingPongSend);
+    let pingPongDelay = {
+      input: audioCtx.createGain(),
+      delayL: audioCtx.createDelay(),
+      delayR: audioCtx.createDelay(),
+      feedbackL: audioCtx.createGain(),
+      feedbackR: audioCtx.createGain(),
+      pannerL: audioCtx.createStereoPanner(),
+      pannerR: audioCtx.createStereoPanner(),
+      merger: audioCtx.createChannelMerger(2)
+    };
+    pingPongSend.connect(pingPongDelay.input);
+    pingPongDelay.input.connect(pingPongDelay.delayL);
+    pingPongDelay.input.connect(pingPongDelay.delayR);
+    let initialDelay = parseFloat(document.getElementById('delayTime').value);
+    pingPongDelay.delayL.delayTime.value = initialDelay;
+    pingPongDelay.delayR.delayTime.value = initialDelay;
+    let initialFeedback = parseFloat(document.getElementById('delayFeedback').value) / 100;
+    pingPongDelay.feedbackL.gain.value = initialFeedback;
+    pingPongDelay.feedbackR.gain.value = initialFeedback;
+    pingPongDelay.delayL.connect(pingPongDelay.feedbackL);
+    pingPongDelay.feedbackL.connect(pingPongDelay.delayR);
+    pingPongDelay.delayR.connect(pingPongDelay.feedbackR);
+    pingPongDelay.feedbackR.connect(pingPongDelay.delayL);
+    pingPongDelay.delayL.connect(pingPongDelay.pannerL);
+    pingPongDelay.delayR.connect(pingPongDelay.pannerR);
+    pingPongDelay.pannerL.pan.value = -1;
+    pingPongDelay.pannerR.pan.value = 1;
+    pingPongDelay.pannerL.connect(pingPongDelay.merger, 0, 0);
+    pingPongDelay.pannerR.connect(pingPongDelay.merger, 0, 1);
+    const pingPongWetGain = audioCtx.createGain();
+    pingPongWetGain.gain.value = parseFloat(document.getElementById('delayMix').value) / 100;
+    pingPongDelay.merger.connect(pingPongWetGain);
+    pingPongWetGain.connect(masterGain);
+    
+    // --- Reverb Impulse Response ---
+    function generateImpulseResponse(duration, decay) {
+      let sampleRate = audioCtx.sampleRate;
+      let length = sampleRate * duration;
+      let impulse = audioCtx.createBuffer(2, length, sampleRate);
+      for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
+        let channelData = impulse.getChannelData(channel);
+        for (let i = 0; i < length; i++) {
+          channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+        }
+      }
+      return impulse;
+    }
+    function updateReverbImpulse() {
+      let decay = parseFloat(document.getElementById('reverbDecay').value);
+      let impulse = generateImpulseResponse(decay, decay);
+      convolver.buffer = impulse;
+    }
+    updateReverbImpulse();
+    
+    // --- ADSR Envelope Function ---
+    function triggerEnvelope(gainNode) {
+      let now = audioCtx.currentTime;
+      let seqIntervalSec = parseFloat(document.getElementById('seqInterval').value) / 1000;
+      let attack = parseFloat(document.getElementById('adsrAttack').value);
+      let decay = parseFloat(document.getElementById('adsrDecay').value);
+      let sustain = parseFloat(document.getElementById('adsrSustain').value);
+      let release = parseFloat(document.getElementById('adsrRelease').value);
+      
+      // Adjust release so that attack + decay + release does not exceed the sequencer step
+      let availableTime = seqIntervalSec - (attack + decay);
+      if (availableTime < 0) {
+        availableTime = 0;
+      }
+      release = Math.min(release, availableTime);
+      
+      gainNode.gain.cancelScheduledValues(now);
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(1, now + attack);
+      gainNode.gain.linearRampToValueAtTime(sustain, now + attack + decay);
+      let sustainEndTime = now + seqIntervalSec - release;
+      sustainEndTime = Math.max(sustainEndTime, now + attack + decay);
+      gainNode.gain.setValueAtTime(sustain, sustainEndTime);
+      gainNode.gain.linearRampToValueAtTime(0, now + seqIntervalSec);
+    }
+    
+    // --- Oscillators, Sequencer, and Modulation ---
+    let seqOffsetsOsc1 = [];
+    let seqOffsetsOsc2 = [];
+    let currentStep = 0;
+    function createSequencerGrid() {
+      const gridContainer = document.getElementById('sequencerGrid');
+      gridContainer.innerHTML = '';
+      const steps = parseInt(document.getElementById('seqSteps').value);
+      seqOffsetsOsc1 = new Array(steps).fill(0);
+      seqOffsetsOsc2 = new Array(steps).fill(0);
+      for (let i = 0; i < steps; i++) {
+        const stepDiv = document.createElement('div');
+        stepDiv.className = 'seq-step';
+        stepDiv.innerHTML = `<strong>Step ${i + 1}</strong>
+          <label>Osc1 Offset (Hz)
+            <input type="range" min="-50" max="50" value="0" data-step="${i}" data-osc="1">
+          </label>
+          <label>Osc2 Offset (Hz)
+            <input type="range" min="-50" max="50" value="0" data-step="${i}" data-osc="2">
+          </label>`;
+        gridContainer.appendChild(stepDiv);
+      }
+      gridContainer.querySelectorAll('input[type="range"]').forEach(input => {
+        input.addEventListener('input', (e) => {
+          const index = parseInt(e.target.getAttribute('data-step'));
+          const osc = e.target.getAttribute('data-osc');
+          if (osc === "1") {
+            seqOffsetsOsc1[index] = parseFloat(e.target.value);
+          } else if (osc === "2") {
+            seqOffsetsOsc2[index] = parseFloat(e.target.value);
+          }
+        });
+      });
+    }
+    
+    function createOscillators() {
+      // Primary oscillators
+      osc1 = audioCtx.createOscillator();
+      osc2 = audioCtx.createOscillator();
+      osc1.type = document.getElementById('osc1Waveform').value;
+      osc2.type = document.getElementById('osc2Waveform').value;
+      let osc1Freq = parseFloat(document.getElementById('osc1Freq').value);
+      let osc2Freq = parseFloat(document.getElementById('osc2Freq').value);
+      osc1.frequency.value = osc1Freq;
+      osc2.frequency.value = osc2Freq;
+      
+      // Subharmonic oscillators
+      subOsc1 = audioCtx.createOscillator();
+      subOsc2 = audioCtx.createOscillator();
+      subOsc1.type = document.getElementById('subOsc1Waveform').value;
+      subOsc2.type = document.getElementById('subOsc2Waveform').value;
+      let ratio1 = parseFloat(document.getElementById('subOsc1Ratio').value);
+      let ratio2 = parseFloat(document.getElementById('subOsc2Ratio').value);
+      subOsc1.frequency.value = osc1Freq / ratio1;
+      subOsc2.frequency.value = osc2Freq / ratio2;
+      
+      // Create amplitude gain nodes for ADSR envelope and assign them globally.
+      primaryGain1 = audioCtx.createGain();
+      primaryGain2 = audioCtx.createGain();
+      subGain1 = audioCtx.createGain();
+      subGain2 = audioCtx.createGain();
+      // Set initial gain to 0 so envelope can take effect.
+      primaryGain1.gain.value = 0;
+      primaryGain2.gain.value = 0;
+      subGain1.gain.value = 0;
+      subGain2.gain.value = 0;
+      
+      // Create additional gain nodes for mixing oscillator outputs.
+      const mixGain1 = audioCtx.createGain();
+      const mixGain2 = audioCtx.createGain();
+      const mixSubGain1 = audioCtx.createGain();
+      const mixSubGain2 = audioCtx.createGain();
+      mixGain1.gain.value = 0.5;
+      mixGain2.gain.value = 0.5;
+      mixSubGain1.gain.value = 0.5;
+      mixSubGain2.gain.value = 0.5;
+      
+      // Connect oscillators to their ADSR gain nodes then to the mixer gains.
+      osc1.connect(primaryGain1);
+      primaryGain1.connect(mixGain1);
+      osc2.connect(primaryGain2);
+      primaryGain2.connect(mixGain2);
+      subOsc1.connect(subGain1);
+      subGain1.connect(mixSubGain1);
+      subOsc2.connect(subGain2);
+      subGain2.connect(mixSubGain2);
+      
+      // Connect mixer gains to the filter.
+      mixGain1.connect(filter);
+      mixGain2.connect(filter);
+      mixSubGain1.connect(filter);
+      mixSubGain2.connect(filter);
+      
+      // Start all oscillators.
+      osc1.start();
+      osc2.start();
+      subOsc1.start();
+      subOsc2.start();
+      
+      // Create the LFO for modulation.
+      createLFO();
+    }
+    
+    function createLFO() {
+      lfo = audioCtx.createOscillator();
+      lfoGain = audioCtx.createGain();
+      lfo.type = document.getElementById('lfoWaveform').value;
+      lfo.frequency.value = parseFloat(document.getElementById('lfoFrequency').value);
+      lfoGain.gain.value = parseFloat(document.getElementById('lfoDepth').value);
+      lfo.connect(lfoGain);
+      updateLfoRouting();
+      lfo.start();
+    }
+    
+    function updateLfoRouting() {
+      try { lfoGain.disconnect(); } catch(e) { }
+      const dest = document.getElementById('lfoDest').value;
+      if (dest === 'osc1' && osc1) {
+        lfoGain.connect(osc1.frequency);
+      } else if (dest === 'osc2' && osc2) {
+        lfoGain.connect(osc2.frequency);
+      } else if (dest === 'filter') {
+        lfoGain.connect(filter.frequency);
+      }
+    }
+    
+    function startSequencer() {
+      const seqInterval = parseInt(document.getElementById('seqInterval').value);
+      const steps = seqOffsetsOsc1.length;
+      timerId = setInterval(() => {
+        currentStep = (currentStep + 1) % steps;
+        document.getElementById('currentStep').innerText = currentStep + 1;
+        const baseOsc1 = parseFloat(document.getElementById('osc1Freq').value);
+        const baseOsc2 = parseFloat(document.getElementById('osc2Freq').value);
+        const offset1 = seqOffsetsOsc1[currentStep];
+        const offset2 = seqOffsetsOsc2[currentStep];
+        const newFreq1 = baseOsc1 + offset1;
+        const newFreq2 = baseOsc2 + offset2;
+        if (osc1 && osc2 && subOsc1 && subOsc2) {
+          osc1.frequency.setTargetAtTime(newFreq1, audioCtx.currentTime, 0.01);
+          osc2.frequency.setTargetAtTime(newFreq2, audioCtx.currentTime, 0.01);
+          let ratio1 = parseFloat(document.getElementById('subOsc1Ratio').value);
+          let ratio2 = parseFloat(document.getElementById('subOsc2Ratio').value);
+          subOsc1.frequency.setTargetAtTime(newFreq1 / ratio1, audioCtx.currentTime, 0.01);
+          subOsc2.frequency.setTargetAtTime(newFreq2 / ratio2, audioCtx.currentTime, 0.01);
+          
+          // Trigger ADSR envelope on each oscillator's gain node.
+          triggerEnvelope(primaryGain1);
+          triggerEnvelope(primaryGain2);
+          triggerEnvelope(subGain1);
+          triggerEnvelope(subGain2);
+        }
+      }, seqInterval);
+    }
+    
+    function stopSequencer() {
+      clearInterval(timerId);
+      currentStep = 0;
+      document.getElementById('currentStep').innerText = currentStep;
+    }
+    
+    // --- UI Event Listeners ---
+    document.getElementById('osc1Freq').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      if (osc1) {
+        osc1.frequency.setTargetAtTime(val, audioCtx.currentTime, 0.01);
+        let ratio1 = parseFloat(document.getElementById('subOsc1Ratio').value);
+        subOsc1.frequency.setTargetAtTime(val / ratio1, audioCtx.currentTime, 0.01);
+      }
+    });
+    document.getElementById('osc2Freq').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      if (osc2) {
+        osc2.frequency.setTargetAtTime(val, audioCtx.currentTime, 0.01);
+        let ratio2 = parseFloat(document.getElementById('subOsc2Ratio').value);
+        subOsc2.frequency.setTargetAtTime(val / ratio2, audioCtx.currentTime, 0.01);
+      }
+    });
+    document.getElementById('filterCutoff').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      filter.frequency.setTargetAtTime(val, audioCtx.currentTime, 0.01);
+    });
+    document.getElementById('filterRes').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      filter.Q.setTargetAtTime(val, audioCtx.currentTime, 0.01);
+    });
+    document.getElementById('osc1Waveform').addEventListener('change', (e) => {
+      if (osc1) osc1.type = e.target.value;
+    });
+    document.getElementById('osc2Waveform').addEventListener('change', (e) => {
+      if (osc2) osc2.type = e.target.value;
+    });
+    document.getElementById('subOsc1Waveform').addEventListener('change', (e) => {
+      if (subOsc1) subOsc1.type = e.target.value;
+    });
+    document.getElementById('subOsc2Waveform').addEventListener('change', (e) => {
+      if (subOsc2) subOsc2.type = e.target.value;
+    });
+    document.getElementById('subOsc1Ratio').addEventListener('change', (e) => {
+      if (osc1 && subOsc1) {
+        let base = parseFloat(document.getElementById('osc1Freq').value);
+        let ratio = parseFloat(e.target.value);
+        subOsc1.frequency.setTargetAtTime(base / ratio, audioCtx.currentTime, 0.01);
+      }
+    });
+    document.getElementById('subOsc2Ratio').addEventListener('change', (e) => {
+      if (osc2 && subOsc2) {
+        let base = parseFloat(document.getElementById('osc2Freq').value);
+        let ratio = parseFloat(e.target.value);
+        subOsc2.frequency.setTargetAtTime(base / ratio, audioCtx.currentTime, 0.01);
+      }
+    });
+    document.getElementById('seqSteps').addEventListener('input', createSequencerGrid);
+    document.getElementById('lfoWaveform').addEventListener('change', (e) => {
+      if (lfo) { lfo.type = e.target.value; }
+    });
+    document.getElementById('lfoFrequency').addEventListener('input', (e) => {
+      if (lfo) { lfo.frequency.setTargetAtTime(parseFloat(e.target.value), audioCtx.currentTime, 0.01); }
+    });
+    document.getElementById('lfoDepth').addEventListener('input', (e) => {
+      if (lfoGain) { lfoGain.gain.setTargetAtTime(parseFloat(e.target.value), audioCtx.currentTime, 0.01); }
+    });
+    document.getElementById('lfoDest').addEventListener('change', updateLfoRouting);
+    document.getElementById('reverbDecay').addEventListener('input', updateReverbImpulse);
+    document.getElementById('reverbMix').addEventListener('input', () => {
+      reverbWetGain.gain.setTargetAtTime(parseFloat(document.getElementById('reverbMix').value) / 100, audioCtx.currentTime, 0.01);
+    });
+    document.getElementById('delayTime').addEventListener('input', () => {
+      let delayVal = parseFloat(document.getElementById('delayTime').value);
+      pingPongDelay.delayL.delayTime.setTargetAtTime(delayVal, audioCtx.currentTime, 0.01);
+      pingPongDelay.delayR.delayTime.setTargetAtTime(delayVal, audioCtx.currentTime, 0.01);
+    });
+    document.getElementById('delayFeedback').addEventListener('input', () => {
+      let fb = parseFloat(document.getElementById('delayFeedback').value) / 100;
+      pingPongDelay.feedbackL.gain.setTargetAtTime(fb, audioCtx.currentTime, 0.01);
+      pingPongDelay.feedbackR.gain.setTargetAtTime(fb, audioCtx.currentTime, 0.01);
+    });
+    document.getElementById('delayMix').addEventListener('input', () => {
+      let mix = parseFloat(document.getElementById('delayMix').value) / 100;
+      pingPongWetGain.gain.setTargetAtTime(mix, audioCtx.currentTime, 0.01);
+    });
+    
+    document.getElementById('startStop').addEventListener('click', () => {
+      if (!isPlaying) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        createOscillators();
+        createSequencerGrid();
+        startSequencer();
+        document.getElementById('startStop').innerText = "Stop";
+      } else {
+        stopSequencer();
+        if (osc1) { osc1.stop(); osc2.stop(); subOsc1.stop(); subOsc2.stop(); }
+        if (lfo) { lfo.stop(); }
+        document.getElementById('startStop').innerText = "Start";
+        osc1 = osc2 = subOsc1 = subOsc2 = lfo = lfoGain = null;
+      }
+      isPlaying = !isPlaying;
+    });
+  </script>
+</body>
+</html>
