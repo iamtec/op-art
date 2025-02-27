@@ -3,12 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flow Field Reverb Mixer with Global Effects</title>
+  <title>Reverb Machine</title>
+  <!-- Open Graph meta tags -->
+  <meta property="og:title" content="Reverb Machine">
+  <meta property="og:description" content="An interactive reverb machine where moving balls control reverb.">
+  <meta property="og:image" content="assets/test/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+
   <!-- Load Google Web Font: Cormorant -->
   <link href="https://fonts.googleapis.com/css2?family=Cormorant&display=swap" rel="stylesheet">
+  
   <!-- Load p5.js and p5.sound from local paths -->
   <script src="js/p5/p5.min.js"></script>
   <script src="js/p5/addons/p5.sound.min.js"></script>
+  
   <style>
     body { 
       margin: 0; 
@@ -72,6 +80,10 @@
   // Variables for the start message
   let startMessageAlpha = 255;
   let messageActive = true;
+  // Variables for the second (scare) message:
+  let firstClickTime = 0;
+  let scareMessageAlpha = 0;
+  let scareMessageFadingOut = false;
 
   function preload(){
     // Load impulses
@@ -325,16 +337,16 @@
       let mousePos = createVector(mouseX, mouseY);
       let pos1 = createVector(baseX1, baseY1).add(offset1);
       let diff1 = p5.Vector.sub(pos1, mousePos);
-      if(diff1.mag() > 0){ diff1.normalize().mult(2); offset1.add(diff1); }
+      if(diff1.mag() > 0){ diff1.normalize().mult(3); offset1.add(diff1); }
       let pos2 = createVector(baseX2, baseY2).add(offset2);
       let diff2 = p5.Vector.sub(pos2, mousePos);
-      if(diff2.mag() > 0){ diff2.normalize().mult(2); offset2.add(diff2); }
+      if(diff2.mag() > 0){ diff2.normalize().mult(3); offset2.add(diff2); }
       let pos3 = createVector(baseX3, baseY3).add(offset3);
       let diff3 = p5.Vector.sub(pos3, mousePos);
-      if(diff3.mag() > 0){ diff3.normalize().mult(2); offset3.add(diff3); }
+      if(diff3.mag() > 0){ diff3.normalize().mult(3); offset3.add(diff3); }
       let pos4 = createVector(baseX4, baseY4).add(offset4);
       let diff4 = p5.Vector.sub(pos4, mousePos);
-      if(diff4.mag() > 0){ diff4.normalize().mult(2); offset4.add(diff4); }
+      if(diff4.mag() > 0){ diff4.normalize().mult(3); offset4.add(diff4); }
     } else {
       offset1.mult(0.95);
       offset2.mult(0.95);
@@ -467,12 +479,34 @@
         startMessageAlpha -= 5;
       }
     }
+    
+    // ---------------- Display "Click and hold to scare the balls" Message ----------------
+    if(firstClickTime > 0 && millis() - firstClickTime >= 15000){
+      if(!scareMessageFadingOut){
+        scareMessageAlpha = min(scareMessageAlpha + 5, 255);
+      } else {
+        scareMessageAlpha = max(scareMessageAlpha - 5, 0);
+      }
+      let scareMsgColor = color("#ccad9e");
+      scareMsgColor.setAlpha(scareMessageAlpha);
+      fill(scareMsgColor);
+      textSize(32);
+      textAlign(CENTER, CENTER);
+      text("Click and hold to scare the balls", width/2, height * 0.8);
+    }
   }
 
   function mousePressed(){
     startAudio();
     if(messageActive){
       messageActive = false;
+      if(firstClickTime === 0){
+        firstClickTime = millis();
+      }
+    }
+    // If the second message is visible, trigger its fade-out.
+    if(scareMessageAlpha > 0){
+      scareMessageFadingOut = true;
     }
     if(mousePressStart === 0){
       mousePressStart = millis();
