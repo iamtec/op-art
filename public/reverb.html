@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dual Impulse Reverb Blender with Compressor</title>
+  <!-- Load p5.js and p5.sound from local paths -->
+  <script src="js/p5/p5.min.js"></script>
+  <script src="js/p5/addons/p5.sound.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #1e1e1e;
+      color: white;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dual Impulse Reverb Blender with Compressor</h1>
+  <p>
+    Click anywhere to start audio. Use horizontal mouse movement (X-axis) to blend the first set of reverbs, and vertical movement (Y-axis) to blend the second set.
+  </p>
+  <script>
+    let audioContext;
+    // System 1 variables
+    let sample, impulseA, impulseB, impulseC;
+    let convolverA, convolverB, convolverC;
+    let gainA, gainB, gainC;
+    let compressor1;
+    
+    // System 2 variables
+    let sample2, impulseD, impulseE, impulseF;
+    let convolverD, convolverE, convolverF;
+    let gainD, gainE, gainF;
+    let compressor2;
+    
+    let isPlaying = false;
+    
+    function preload() {
+      // Load system 1 files
+      sample = loadSound("sample.wav");
+      impulseA = loadSound("impulses/impulseA.wav");
+      impulseB = loadSound("impulses/impulseB.wav");
+      impulseC = loadSound("impulses/impulseC.wav");
+      
+      // Load system 2 files
+      sample2 = loadSound("sample2.wav");
+      impulseD = loadSound("impulses/impulseD.wav");
+      impulseE = loadSound("impulses/impulseE.wav");
+      impulseF = loadSound("impulses/impulseF.wav");
+    }
+    
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      userStartAudio().then(() => console.log("Audio Started"));
+    }
+    
+    function startAudio() {
+      if (
+        !isPlaying &&
+        sample.isLoaded() && impulseA.isLoaded() && impulseB.isLoaded() && impulseC.isLoaded() &&
+        sample2.isLoaded() && impulseD.isLoaded() && impulseE.isLoaded() && impulseF.isLoaded()
+      ) {
+        audioContext = getAudioContext();
+        
+        // ***** System 1 Setup (Horizontal Control) *****
+        // Create convolver nodes for system 1
+        convolverA = audioContext.createConvolver();
+        convolverB = audioContext.createConvolver();
+        convolverC = audioContext.createConvolver();
+        
+        // Assign impulse responses to system 1 convolvers
+        convolverA.buffer = impulseA.buffer;
+        convolverB.buffer = impulseB.buffer;
+        convolverC.buffer = impulseC.buffer;
+        
+        // Create gain nodes for system 1
+        gainA = audioContext.createGain();
+        gainB = audioContext.createGain();
+        gainC = audioContext.createGain();
+        
+        // Create compressor for system 1
+        compressor1 = audioContext.createDynamicsCompressor();
+        // Optional: adjust compressor settings for system 1 if needed
+        
+        // Start playing sample 1 on loop
+        sample.loop();
+        
+        // Connect sample 1 to each convolver
+        sample.connect(convolverA);
+        sample.connect(convolverB);
+        sample.connect(convolverC);
+        
+        // Connect each convolver to its corresponding gain node
+        convolverA.connect(gainA);
+        convolverB.connect(gainB);
+        convolverC.connect(gainC);
+        
+        // Route gains through compressor1 then to the destination
+        gainA.connect(compressor1);
+        gainB.connect(compressor1);
+        gainC.connect(compressor1);
+        compressor1.connect(audioContext.destination);
+        
+        
+        // ***** System 2 Setup (Vertical Control) *****
+        // Create convolver nodes for system 2
+        convolverD = audioContext.createConvolver();
+        convolverE = audioContext.createConvolver();
+        convolverF = audioContext.createConvolver();
+        
+        // Assign impulse responses to system 2 convolvers
+        convolverD.buffer = impulseD.buffer;
+        convolverE.buffer = impulseE.buffer;
+        convolverF.buffer = impulseF.buffer;
+        
+        // Create gain nodes for system 2
+        gainD = audioContext.createGain();
+        gainE = audioContext.createGain();
+        gainF = audioContext.createGain();
+        
+        // Create compressor for system 2
+        compressor2 = audioContext.createDynamicsCompressor();
+        // Optional: adjust compressor settings for system 2 if needed
+        
+        // Start playing sample 2 on loop
+        sample2.loop();
+        
+        // Connect sample 2 to each convolver
+        sample2.connect(convolverD);
+        sample2.connect(convolverE);
+        sample2.connect(convolverF);
+        
+        // Connect each convolver to its corresponding gain node
+        convolverD.connect(gainD);
+        convolverE.connect(gainE);
+        convolverF.connect(gainF);
+        
+        // Route gains through compressor2 then to the destination
+        gainD.connect(compressor2);
+        gainE.connect(compressor2);
+        gainF.connect(compressor2);
+        compressor2.connect(audioContext.destination);
+        
+        isPlaying = true;
+      }
+    }
+    
+    function draw() {
+      background(30);
+      
+      // ***** System 1 Blending (Controlled by mouseX) *****
+      let blendA = constrain(1 - mouseX / width, 0, 1);
+      let blendB = constrain(1 - abs(mouseX - width / 2) / (width / 2), 0, 1);
+      let blendC = constrain(mouseX / width, 0, 1);
+      
+      // Apply maximum gain multiplier of 0.27
+      if (isPlaying) {
+        gainA.gain.value = blendA * 0.27;
+        gainB.gain.value = blendB * 0.27;
+        gainC.gain.value = blendC * 0.27;
+      }
+      
+      // ***** System 2 Blending (Controlled by mouseY) *****
+      let blendD = constrain(1 - mouseY / height, 0, 1);
+      let blendE = constrain(1 - abs(mouseY - height / 2) / (height / 2), 0, 1);
+      let blendF = constrain(mouseY / height, 0, 1);
+      
+      if (isPlaying) {
+        gainD.gain.value = blendD * 0.27;
+        gainE.gain.value = blendE * 0.27;
+        gainF.gain.value = blendF * 0.27;
+      }
+      
+      // Display blend values for both systems
+      fill(255);
+      textAlign(CENTER, CENTER);
+      textSize(18);
+      
+      // System 1 info at top
+      text(
+        `System 1 (mouseX):\nImpulse A: ${ (blendA * 0.27).toFixed(2) } | Impulse B: ${ (blendB * 0.27).toFixed(2) } | Impulse C: ${ (blendC * 0.27).toFixed(2)}`,
+        width / 2,
+        height / 4
+      );
+      
+      // System 2 info at bottom
+      text(
+        `System 2 (mouseY):\nImpulse D: ${ (blendD * 0.27).toFixed(2) } | Impulse E: ${ (blendE * 0.27).toFixed(2) } | Impulse F: ${ (blendF * 0.27).toFixed(2)}`,
+        width / 2,
+        (3 * height) / 4
+      );
+    }
+    
+    function mousePressed() {
+      startAudio();
+    }
+  </script>
+</body>
+</html>

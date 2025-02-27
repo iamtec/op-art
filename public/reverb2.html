@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flow Field Reverb Mixer with Global Effects</title>
+  <!-- Load Google Web Font: Cormorant -->
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant&display=swap" rel="stylesheet">
+  <!-- Load p5.js and p5.sound from local paths -->
+  <script src="js/p5/p5.min.js"></script>
+  <script src="js/p5/addons/p5.sound.min.js"></script>
+  <style>
+    body { 
+      margin: 0; 
+      overflow: hidden; 
+      font-family: 'Cormorant', serif;
+    }
+  </style>
+</head>
+<body>
+<script>
+  // Noise offsets for each system's controlling ellipse
+  var t = 0, t2 = 100, t3 = 200, t4 = 300;
+
+  // ---------------- System 1 (Sample1: impulses A, B, C) ----------------
+  let sample, impulseA, impulseB, impulseC;
+  let convolverA, convolverB, convolverC;
+  let gainA, gainB, gainC;
+  let compressor1;
+  let delay1, feedbackGain1;
+  let pingDelay, pingPanner, pingDelayGain;
+
+  // ---------------- System 2 (Sample2: impulses D, E, F) ----------------
+  let sample2, impulseD, impulseE, impulseF;
+  let convolverD, convolverE, convolverF;
+  let gainD, gainE, gainF;
+  let compressor2;
+  let delay2, feedbackGain2;
+
+  // ---------------- System 3 (Sample3: impulses A, C, E) ----------------
+  let sample3;
+  let convolver3A, convolver3C, convolver3E;
+  let gain3A, gain3C, gain3E;
+  let compressor3;
+
+  // ---------------- System 4 (Sample4: impulses B, D, E) ----------------
+  let sample4;
+  let convolver4B, convolver4D, convolver4E;
+  let gain4B, gain4D, gain4E;
+  let compressor4;
+
+  // Global master bus and crossfade nodes for global effect chain:
+  let masterBus, dryGain, wetGain;
+  let heavyDelay, bandpass, distortion;
+  let globalEffectMix = 0; // 0 = no effect, 1 = full effect
+  let mousePressStart = 0; // used to detect hold duration
+
+  let isPlaying = false;
+
+  // Offsets for repulsion (initialized as zero vectors)
+  let offset1, offset2, offset3, offset4;
+
+  // System active state and fade (volume/color) values.
+  let system1Active = false, system2Active = false, system3Active = false, system4Active = false;
+  let system1Fade = 0, system2Fade = 0, system3Fade = 0, system4Fade = 0;
+  let fadeRate = 0.01; // fade step per frame
+
+  // Global variables for final positions and sizes (used in mousePressed)
+  let finalX1, finalY1, finalX2, finalY2, finalX3, finalY3, finalX4, finalY4;
+  let size1, size2, size3, size4;
+
+  // Variables for the start message
+  let startMessageAlpha = 255;
+  let messageActive = true;
+
+  function preload(){
+    // Load impulses
+    impulseA = loadSound("impulses/impulseA.wav");
+    impulseB = loadSound("impulses/impulseB.wav");
+    impulseC = loadSound("impulses/impulseC.wav");
+    impulseD = loadSound("impulses/impulseD.wav");
+    impulseE = loadSound("impulses/impulseE.wav");
+    impulseF = loadSound("impulses/impulseF.wav");
+
+    // Load audio samples from new paths.
+    sample   = loadSound("assets/test/sample1.wav");
+    sample2  = loadSound("assets/test/sample2.wav");
+    sample3  = loadSound("assets/test/sample3.wav");
+    sample4  = loadSound("assets/test/sample4.wav");
+  }
+
+  function setup(){
+    createCanvas(windowWidth, windowHeight);
+    // Set textFont to Cormorant so canvas text uses the Google Web Font.
+    textFont("Cormorant");
+    // Initialize repulsion offsets
+    offset1 = createVector(0,0);
+    offset2 = createVector(0,0);
+    offset3 = createVector(0,0);
+    offset4 = createVector(0,0);
+    
+    let bg = color("#FFE4E1");
+    bg.setAlpha(10);
+    background(bg);
+    userStartAudio().then(() => console.log("Audio Started"));
+  }
+
+  // Utility: create a distortion curve for a WaveShaper node.
+  function makeDistortionCurve(amount) {
+    let k = typeof amount === 'number' ? amount : 50;
+    let n_samples = 44100;
+    let curve = new Float32Array(n_samples);
+    let deg = Math.PI / 180;
+    for (let i = 0; i < n_samples; ++i) {
+      let x = i * 2 / n_samples - 1;
+      curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+  }
+
+  function startAudio(){
+    if(!isPlaying &&
+       sample.isLoaded() && sample2.isLoaded() && sample3.isLoaded() && sample4.isLoaded() &&
+       impulseA.isLoaded() && impulseB.isLoaded() && impulseC.isLoaded() &&
+       impulseD.isLoaded() && impulseE.isLoaded() && impulseF.isLoaded()){
+      let audioContext = getAudioContext();
+      
+      // -------- System 1 Setup (Sample1 with impulses A, B, C) --------
+      convolverA = audioContext.createConvolver();
+      convolverB = audioContext.createConvolver();
+      convolverC = audioContext.createConvolver();
+      convolverA.buffer = impulseA.buffer;
+      convolverB.buffer = impulseB.buffer;
+      convolverC.buffer = impulseC.buffer;
+      gainA = audioContext.createGain();
+      gainB = audioContext.createGain();
+      gainC = audioContext.createGain();
+      compressor1 = audioContext.createDynamicsCompressor();
+
+      sample.disconnect();
+      sample.loop();
+      sample.connect(convolverA);
+      sample.connect(convolverB);
+      sample.connect(convolverC);
+      convolverA.connect(gainA);
+      convolverB.connect(gainB);
+      convolverC.connect(gainC);
+      gainA.connect(compressor1);
+      gainB.connect(compressor1);
+      gainC.connect(compressor1);
+
+      // Extended tail delay for System 1 (internal chain)
+      delay1 = audioContext.createDelay();
+      delay1.delayTime.value = 1.5;
+      feedbackGain1 = audioContext.createGain();
+      feedbackGain1.gain.value = 0.4;
+      compressor1.connect(delay1);
+      delay1.connect(audioContext.destination);
+      delay1.connect(feedbackGain1);
+      feedbackGain1.connect(delay1);
+
+      // Ping Pong Delay for System 1
+      pingDelay = audioContext.createDelay();
+      pingDelay.delayTime.value = 0.8;
+      pingPanner = audioContext.createStereoPanner();
+      pingDelayGain = audioContext.createGain();
+      pingDelayGain.gain.value = 0;
+      compressor1.connect(pingDelay);
+      pingDelay.connect(pingPanner);
+      pingPanner.connect(pingDelayGain);
+      pingDelayGain.connect(audioContext.destination);
+
+      // -------- System 2 Setup (Sample2 with impulses D, E, F) --------
+      convolverD = audioContext.createConvolver();
+      convolverE = audioContext.createConvolver();
+      convolverF = audioContext.createConvolver();
+      convolverD.buffer = impulseD.buffer;
+      convolverE.buffer = impulseE.buffer;
+      convolverF.buffer = impulseF.buffer;
+      gainD = audioContext.createGain();
+      gainE = audioContext.createGain();
+      gainF = audioContext.createGain();
+      compressor2 = audioContext.createDynamicsCompressor();
+
+      sample2.disconnect();
+      sample2.loop();
+      sample2.connect(convolverD);
+      sample2.connect(convolverE);
+      sample2.connect(convolverF);
+      convolverD.connect(gainD);
+      convolverE.connect(gainE);
+      convolverF.connect(gainF);
+      gainD.connect(compressor2);
+      gainE.connect(compressor2);
+      gainF.connect(compressor2);
+
+      // Extended tail delay for System 2
+      delay2 = audioContext.createDelay();
+      delay2.delayTime.value = 1.5;
+      feedbackGain2 = audioContext.createGain();
+      feedbackGain2.gain.value = 0.4;
+      compressor2.connect(delay2);
+      delay2.connect(audioContext.destination);
+      delay2.connect(feedbackGain2);
+      feedbackGain2.connect(delay2);
+
+      // -------- System 3 Setup (Sample3 with impulses A, C, E) --------
+      convolver3A = audioContext.createConvolver();
+      convolver3C = audioContext.createConvolver();
+      convolver3E = audioContext.createConvolver();
+      convolver3A.buffer = impulseA.buffer;
+      convolver3C.buffer = impulseC.buffer;
+      convolver3E.buffer = impulseE.buffer;
+      gain3A = audioContext.createGain();
+      gain3C = audioContext.createGain();
+      gain3E = audioContext.createGain();
+      compressor3 = audioContext.createDynamicsCompressor();
+
+      sample3.disconnect();
+      sample3.loop();
+      sample3.connect(convolver3A);
+      sample3.connect(convolver3C);
+      sample3.connect(convolver3E);
+      convolver3A.connect(gain3A);
+      convolver3C.connect(gain3C);
+      convolver3E.connect(gain3E);
+      gain3A.connect(compressor3);
+      gain3C.connect(compressor3);
+      gain3E.connect(compressor3);
+      compressor3.connect(audioContext.destination);
+
+      // -------- System 4 Setup (Sample4 with impulses B, D, E) --------
+      convolver4B = audioContext.createConvolver();
+      convolver4D = audioContext.createConvolver();
+      convolver4E = audioContext.createConvolver();
+      convolver4B.buffer = impulseB.buffer;
+      convolver4D.buffer = impulseD.buffer;
+      convolver4E.buffer = impulseE.buffer;
+      gain4B = audioContext.createGain();
+      gain4D = audioContext.createGain();
+      gain4E = audioContext.createGain();
+      compressor4 = audioContext.createDynamicsCompressor();
+
+      sample4.disconnect();
+      sample4.loop();
+      sample4.connect(convolver4B);
+      sample4.connect(convolver4D);
+      sample4.connect(convolver4E);
+      convolver4B.connect(gain4B);
+      convolver4D.connect(gain4D);
+      convolver4E.connect(gain4E);
+      gain4B.connect(compressor4);
+      gain4D.connect(compressor4);
+      gain4E.connect(compressor4);
+      compressor4.connect(audioContext.destination);
+
+      // ---------------- Set Up Global Master Bus & Effects ----------------
+      masterBus = audioContext.createGain();
+      // Re-route all compressor outputs:
+      compressor1.disconnect();
+      compressor2.disconnect();
+      compressor3.disconnect();
+      compressor4.disconnect();
+      compressor1.connect(masterBus);
+      compressor2.connect(masterBus);
+      compressor3.connect(masterBus);
+      compressor4.connect(masterBus);
+      
+      // Create dry and wet paths
+      dryGain = audioContext.createGain();
+      wetGain = audioContext.createGain();
+      masterBus.connect(dryGain);
+      masterBus.connect(wetGain);
+      dryGain.gain.value = 1;
+      wetGain.gain.value = 0;
+
+      // Create the global effect chain: heavy delay -> bandpass -> distortion.
+      heavyDelay = audioContext.createDelay();
+      heavyDelay.delayTime.value = 1.0;
+      bandpass = audioContext.createBiquadFilter();
+      bandpass.type = "bandpass";
+      bandpass.frequency.value = 1000;
+      bandpass.Q.value = 5;
+      distortion = audioContext.createWaveShaper();
+      distortion.curve = makeDistortionCurve(50);
+      distortion.oversample = "4x";
+
+      wetGain.connect(heavyDelay);
+      heavyDelay.connect(bandpass);
+      bandpass.connect(distortion);
+      distortion.connect(audioContext.destination);
+      dryGain.connect(audioContext.destination);
+
+      isPlaying = true;
+    }
+  }
+
+  function draw(){
+    let bg = color("#FFE4E1");
+    bg.setAlpha(10);
+    background(bg);
+
+    // ---------------- Global Effect Mix Control ----------------
+    if(mouseIsPressed && mousePressStart && (millis() - mousePressStart >= 500)){
+      globalEffectMix = min(globalEffectMix + fadeRate, 1);
+    } else {
+      globalEffectMix = max(globalEffectMix - fadeRate, 0);
+    }
+    if(isPlaying && dryGain && wetGain){
+      dryGain.gain.value = 1 - globalEffectMix;
+      wetGain.gain.value = globalEffectMix;
+    }
+
+    // ---------------- Compute Base Positions from Noise ----------------
+    let baseX1 = width * noise(t);
+    let baseY1 = height * noise(t + 5);
+    let baseX2 = width * noise(t2);
+    let baseY2 = height * noise(t2 + 5);
+    let baseX3 = width * noise(t3);
+    let baseY3 = height * noise(t3 + 5);
+    let baseX4 = width * noise(t4);
+    let baseY4 = height * noise(t4 + 5);
+
+    // ---------------- Update Offsets for Repulsion ----------------
+    if(mouseIsPressed){
+      let mousePos = createVector(mouseX, mouseY);
+      let pos1 = createVector(baseX1, baseY1).add(offset1);
+      let diff1 = p5.Vector.sub(pos1, mousePos);
+      if(diff1.mag() > 0){ diff1.normalize().mult(2); offset1.add(diff1); }
+      let pos2 = createVector(baseX2, baseY2).add(offset2);
+      let diff2 = p5.Vector.sub(pos2, mousePos);
+      if(diff2.mag() > 0){ diff2.normalize().mult(2); offset2.add(diff2); }
+      let pos3 = createVector(baseX3, baseY3).add(offset3);
+      let diff3 = p5.Vector.sub(pos3, mousePos);
+      if(diff3.mag() > 0){ diff3.normalize().mult(2); offset3.add(diff3); }
+      let pos4 = createVector(baseX4, baseY4).add(offset4);
+      let diff4 = p5.Vector.sub(pos4, mousePos);
+      if(diff4.mag() > 0){ diff4.normalize().mult(2); offset4.add(diff4); }
+    } else {
+      offset1.mult(0.95);
+      offset2.mult(0.95);
+      offset3.mult(0.95);
+      offset4.mult(0.95);
+    }
+
+    // ---------------- Compute Final Positions ----------------
+    finalX1 = baseX1 + offset1.x;
+    finalY1 = baseY1 + offset1.y;
+    finalX2 = baseX2 + offset2.x;
+    finalY2 = baseY2 + offset2.y;
+    finalX3 = baseX3 + offset3.x;
+    finalY3 = baseY3 + offset3.y;
+    finalX4 = baseX4 + offset4.x;
+    finalY4 = baseY4 + offset4.y;
+
+    // ---------------- Determine Sizes ----------------
+    size1 = map(finalX1, 0, width, 50, 200);
+    size2 = map(finalY2, 0, height, 50, 200);
+    size3 = map(finalX3, 0, width, 50, 200);
+    size4 = map(finalY4, 0, height, 50, 200);
+
+    noStroke();
+    // ---------------- Draw System 1 Ball (horizontal control) ----------------
+    let r1 = 255 * noise(t + 10);
+    let g1 = 255 * noise(t + 15);
+    let b1 = 255 * noise(t + 20);
+    let grey1 = (r1 + g1 + b1) / 3;
+    let finalR1 = lerp(grey1, r1, system1Fade);
+    let finalG1 = lerp(grey1, g1, system1Fade);
+    let finalB1 = lerp(grey1, b1, system1Fade);
+    fill(finalR1, finalG1, finalB1, 150);
+    ellipse(finalX1, finalY1, size1, size1);
+
+    // ---------------- Draw System 2 Ball (vertical control) ----------------
+    let r2 = 255 * noise(t2 + 10);
+    let g2 = 255 * noise(t2 + 15);
+    let b2 = 255 * noise(t2 + 20);
+    let grey2 = (r2 + g2 + b2) / 3;
+    let finalR2 = lerp(grey2, r2, system2Fade);
+    let finalG2 = lerp(grey2, g2, system2Fade);
+    let finalB2 = lerp(grey2, b2, system2Fade);
+    fill(finalR2, finalG2, finalB2, 150);
+    ellipse(finalX2, finalY2, size2, size2);
+
+    // ---------------- Draw System 3 Ball (horizontal control) ----------------
+    let r3 = 255 * noise(t3 + 10);
+    let g3 = 255 * noise(t3 + 15);
+    let b3 = 255 * noise(t3 + 20);
+    let grey3 = (r3 + g3 + b3) / 3;
+    let finalR3 = lerp(grey3, r3, system3Fade);
+    let finalG3 = lerp(grey3, g3, system3Fade);
+    let finalB3 = lerp(grey3, b3, system3Fade);
+    fill(finalR3, finalG3, finalB3, 150);
+    ellipse(finalX3, finalY3, size3, size3);
+
+    // ---------------- Draw System 4 Ball (vertical control) ----------------
+    let r4 = 255 * noise(t4 + 10);
+    let g4 = 255 * noise(t4 + 15);
+    let b4 = 255 * noise(t4 + 20);
+    let grey4 = (r4 + g4 + b4) / 3;
+    let finalR4 = lerp(grey4, r4, system4Fade);
+    let finalG4 = lerp(grey4, g4, system4Fade);
+    let finalB4 = lerp(grey4, b4, system4Fade);
+    fill(finalR4, finalG4, finalB4, 150);
+    ellipse(finalX4, finalY4, size4, size4);
+
+    // ---------------- Map Volume Based on Final Position ----------------
+    let vol1 = map(finalX1, 0, width, 0, 0.15);
+    let vol2 = map(finalY2, 0, height, 0, 0.15);
+    let vol3 = map(finalX3, 0, width, 0, 0.15);
+    let vol4 = map(finalY4, 0, height, 0, 0.15);
+
+    // ---------------- Update Fade Values ----------------
+    system1Fade = system1Active ? min(system1Fade + fadeRate, 1) : max(system1Fade - fadeRate, 0);
+    system2Fade = system2Active ? min(system2Fade + fadeRate, 1) : max(system2Fade - fadeRate, 0);
+    system3Fade = system3Active ? min(system3Fade + fadeRate, 1) : max(system3Fade - fadeRate, 0);
+    system4Fade = system4Active ? min(system4Fade + fadeRate, 1) : max(system4Fade - fadeRate, 0);
+
+    // ---------------- Update Audio Gains (with fade applied) ----------------
+    if(isPlaying && gainA && gainB && gainC && gainD && gainE && gainF &&
+       gain3A && gain3C && gain3E && gain4B && gain4D && gain4E){
+      gainA.gain.value = vol1 * system1Fade;
+      gainB.gain.value = vol1 * system1Fade;
+      gainC.gain.value = vol1 * system1Fade;
+      let threshold = width * 0.8;
+      let pingMixFactor = (finalX1 > threshold) ? map(finalX1, threshold, width, 0, 0.15) : 0;
+      pingDelayGain.gain.value = pingMixFactor;
+      pingPanner.pan.value = sin(millis() / 2000 * TWO_PI);
+
+      gainD.gain.value = vol2 * system2Fade;
+      gainE.gain.value = vol2 * system2Fade;
+      gainF.gain.value = vol2 * system2Fade;
+
+      gain3A.gain.value = vol3 * system3Fade;
+      gain3C.gain.value = vol3 * system3Fade;
+      gain3E.gain.value = vol3 * system3Fade;
+
+      gain4B.gain.value = vol4 * system4Fade;
+      gain4D.gain.value = vol4 * system4Fade;
+      gain4E.gain.value = vol4 * system4Fade;
+    }
+
+    // Increment noise offsets for smooth, slow movement
+    t += 0.002;
+    t2 += 0.003;
+    t3 += 0.0025;
+    t4 += 0.0035;
+
+    // ---------------- Display "click a ball to continue" Message ----------------
+    if(startMessageAlpha > 0){
+      // Set text color to #ccad9e with the current alpha.
+      let msgColor = color("#ccad9e");
+      msgColor.setAlpha(startMessageAlpha);
+      fill(msgColor);
+      textSize(32);
+      textAlign(CENTER, CENTER);
+      text("Tap on a ball to continue", width/2, height/2);
+      if(!messageActive){
+        startMessageAlpha -= 5;
+      }
+    }
+  }
+
+  function mousePressed(){
+    startAudio();
+    if(messageActive){
+      messageActive = false;
+    }
+    if(mousePressStart === 0){
+      mousePressStart = millis();
+    }
+    if(dist(mouseX, mouseY, finalX1, finalY1) < size1/2){
+      system1Active = !system1Active;
+    }
+    if(dist(mouseX, mouseY, finalX2, finalY2) < size2/2){
+      system2Active = !system2Active;
+    }
+    if(dist(mouseX, mouseY, finalX3, finalY3) < size3/2){
+      system3Active = !system3Active;
+    }
+    if(dist(mouseX, mouseY, finalX4, finalY4) < size4/2){
+      system4Active = !system4Active;
+    }
+  }
+
+  function mouseReleased(){
+    mousePressStart = 0;
+  }
+
+  function windowResized(){
+    resizeCanvas(windowWidth, windowHeight);
+  }
+</script>
+</body>
+</html>
