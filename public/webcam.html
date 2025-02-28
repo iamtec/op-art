@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Pixelated Webcam with Fade Effect</title>
+  <title>Pixelated Webcam with Fade Effect (Mobile)</title>
   <style>
     html, body {
       margin: 0;
@@ -12,11 +12,10 @@
       background: #000;
       height: 100%;
     }
-    /* Canvas covers the entire viewport */
     canvas {
       display: block;
     }
-    /* Hide video element (it’s used only as a source) */
+    /* Hide the video element; it's used only as a source */
     #video {
       display: none;
     }
@@ -32,7 +31,7 @@
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const blockSize = 10;       // Each block is 10x10 pixels
+    const blockSize = 5;       // Each block is 10x10 pixels
     const threshold = 128;      // Brightness threshold
 
     // 2D array to hold each block's state (range 0 to 1, where 1 is white)
@@ -45,7 +44,6 @@
       canvas.height = window.innerHeight;
       const numBlocksX = Math.ceil(canvas.width / blockSize);
       const numBlocksY = Math.ceil(canvas.height / blockSize);
-      // Reset blockStates so the fade effect restarts after a resize
       blockStates = new Array(numBlocksY);
       for (let j = 0; j < numBlocksY; j++) {
         blockStates[j] = new Array(numBlocksX).fill(0);
@@ -59,12 +57,12 @@
       const dt = timestamp - lastTime;
       lastTime = timestamp;
       
-      // Draw the current webcam frame onto the canvas to get pixel data
+      // Draw the current video frame on the canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = frame.data;
       
-      // Clear the canvas for custom drawing
+      // Clear canvas for custom drawing
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       const numBlocksX = Math.ceil(canvas.width / blockSize);
@@ -76,7 +74,6 @@
           let sum = 0, count = 0;
           const startX = i * blockSize;
           const startY = j * blockSize;
-          
           // Calculate the average brightness for the block
           for (let y = startY; y < startY + blockSize && y < canvas.height; y++) {
             for (let x = startX; x < startX + blockSize && x < canvas.width; x++) {
@@ -90,32 +87,29 @@
             }
           }
           const avgBrightness = sum / count;
-          
-          // If bright, set block state to white immediately.
-          // Otherwise, decrease state gradually over 2 seconds.
+          // If the block is bright, set its state to white immediately.
+          // Otherwise, fade the state to black over 2 seconds.
           if (avgBrightness > threshold) {
             blockStates[j][i] = 1;
           } else {
             blockStates[j][i] = Math.max(blockStates[j][i] - dt / 2000, 0);
           }
-          
-          // Draw the block with its current grayscale value
           const state = blockStates[j][i];
           const gray = Math.floor(state * 255);
           ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
           ctx.fillRect(startX, startY, blockSize, blockSize);
         }
       }
-      
       requestAnimationFrame(processFrame);
     }
 
-    // Access the webcam and begin processing frames
+    // Request access to the webcam and begin processing frames
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(stream => {
           video.srcObject = stream;
-          video.addEventListener('loadeddata', () => {
+          video.play(); // Ensure the video is playing
+          video.addEventListener('canplay', () => {
             requestAnimationFrame(processFrame);
           });
         })
