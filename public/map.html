@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Detroit Housing Trends</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Mapbox GL JS CSS -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { width: 100%; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <!-- Mapbox GL JS -->
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.js"></script>
+  <script>
+    // Set your Mapbox access token
+    mapboxgl.accessToken = 'pk.eyJ1IjoidGhlZWFybGNhcmxzb24iLCJhIjoiY203cDJ3MmZxMGk2ZTJyb3A5d2kwZnBhZSJ9._eApIt-4tJOq8v08qXnoOQ';
+
+    // Initialize the map with the specified starting angle (pitch: 25°)
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v10',
+      center: [-83.0458, 42.3314],  // Coordinates centered on Detroit
+      zoom: 10,
+      pitch: 25,  // Starting angle
+      bearing: 0,
+      interactive: true
+    });
+
+    map.on('load', () => {
+      // Add the GeoJSON data source with parsed housing trends per block
+      map.addSource('housing-trends', {
+        type: 'geojson',
+        data: 'python/detroit_housing_trends.geojson'
+      });
+
+      // Add a fill-extrusion layer to create 3D peaks and valleys based on trend values
+      map.addLayer({
+        id: 'housing-extrusion',
+        type: 'fill-extrusion',
+        source: 'housing-trends',
+        paint: {
+          // Color interpolation: red for negative, white for neutral, green for positive trends
+          'fill-extrusion-color': [
+            'interpolate', ['linear'], ['get', 'trend'],
+            -1, '#FF0000',   // Strong decrease (red)
+             0, '#FFFFFF',   // Neutral (white)
+             1, '#00FF00'    // Strong increase (green)
+          ],
+          // Height interpolation: set heights proportional to the trend value
+          'fill-extrusion-height': [
+            'interpolate', ['linear'], ['get', 'trend'],
+            -1, 0,    // No extrusion for strong decrease
+             1, 100   // Maximum extrusion for strong increase (adjust the height as needed)
+          ],
+          'fill-extrusion-opacity': 0.8
+        }
+      });
+    });
+  </script>
+</body>
+</html>
