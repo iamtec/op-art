@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Pixelated Webcam with Fade Effect</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      height: 100%;
+    }
+    /* Canvas covers the entire viewport */
+    canvas {
+      display: block;
+    }
+    /* Hide video element (it’s used only as a source) */
+    #video {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Hidden video element capturing the webcam stream -->
+  <video id="video" autoplay playsinline webkit-playsinline muted></video>
+  <!-- Canvas for displaying the pixelated output -->
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const blockSize = 10;       // Each block is 10x10 pixels
+    const threshold = 128;      // Brightness threshold
+
+    // 2D array to hold each block's state (range 0 to 1, where 1 is white)
+    let blockStates = [];
+    let lastTime = null;        // To track time between frames
+
+    // Resize the canvas and reinitialize blockStates based on new dimensions
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      const numBlocksX = Math.ceil(canvas.width / blockSize);
+      const numBlocksY = Math.ceil(canvas.height / blockSize);
+      // Reset blockStates so the fade effect restarts after a resize
+      blockStates = new Array(numBlocksY);
+      for (let j = 0; j < numBlocksY; j++) {
+        blockStates[j] = new Array(numBlocksX).fill(0);
+      }
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    function processFrame(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = timestamp - lastTime;
+      lastTime = timestamp;
+      
+      // Draw the current webcam frame onto the canvas to get pixel data
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = frame.data;
+      
+      // Clear the canvas for custom drawing
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const numBlocksX = Math.ceil(canvas.width / blockSize);
+      const numBlocksY = Math.ceil(canvas.height / blockSize);
+      
+      // Process each block (10x10 pixels)
+      for (let j = 0; j < numBlocksY; j++) {
+        for (let i = 0; i < numBlocksX; i++) {
+          let sum = 0, count = 0;
+          const startX = i * blockSize;
+          const startY = j * blockSize;
+          
+          // Calculate the average brightness for the block
+          for (let y = startY; y < startY + blockSize && y < canvas.height; y++) {
+            for (let x = startX; x < startX + blockSize && x < canvas.width; x++) {
+              const index = (y * canvas.width + x) * 4;
+              const r = data[index];
+              const g = data[index + 1];
+              const b = data[index + 2];
+              const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+              sum += brightness;
+              count++;
+            }
+          }
+          const avgBrightness = sum / count;
+          
+          // If bright, set block state to white immediately.
+          // Otherwise, decrease state gradually over 2 seconds.
+          if (avgBrightness > threshold) {
+            blockStates[j][i] = 1;
+          } else {
+            blockStates[j][i] = Math.max(blockStates[j][i] - dt / 2000, 0);
+          }
+          
+          // Draw the block with its current grayscale value
+          const state = blockStates[j][i];
+          const gray = Math.floor(state * 255);
+          ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+          ctx.fillRect(startX, startY, blockSize, blockSize);
+        }
+      }
+      
+      requestAnimationFrame(processFrame);
+    }
+
+    // Access the webcam and begin processing frames
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          video.addEventListener('loadeddata', () => {
+            requestAnimationFrame(processFrame);
+          });
+        })
+        .catch(error => {
+          console.error("Error accessing webcam:", error);
+          alert("Unable to access your webcam. Please check permissions and device capabilities.");
+        });
+    } else {
+      alert("Your browser does not support accessing the webcam.");
+    }
+  </script>
+</body>
+</html>
