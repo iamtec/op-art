@@ -3,20 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reverb Machine</title>
+  <title>Reverb Machine Debug</title>
   <!-- Open Graph meta tags -->
-  <meta property="og:title" content="Reverb Machine">
-  <meta property="og:description" content="An interactive reverb machine where moving balls control reverb.">
-  <meta property="og:image" content="assets/test/og-image.png">
+  <meta property="og:title" content="DnB Machine">
+  <meta property="og:description" content="DnB Machine.">
+  <meta property="og:image" content="assets/test/og-image3.png">
   <meta name="twitter:card" content="summary_large_image">
-
   <!-- Load Google Web Font: Cormorant -->
   <link href="https://fonts.googleapis.com/css2?family=Cormorant&display=swap" rel="stylesheet">
-  
-  <!-- Load p5.js and p5.sound from local paths -->
+  <!-- Load p5.js and p5.sound -->
   <script src="js/p5/p5.min.js"></script>
   <script src="js/p5/addons/p5.sound.min.js"></script>
-  
   <style>
     body { 
       margin: 0; 
@@ -28,44 +25,61 @@
 <body>
 <script>
   // Noise offsets for each ball
-  var t = 0, t2 = 100, t3 = 200, t4 = 300, t5 = 400, t6 = 500;
+  var t  = 0, t2 = 100, t3 = 200, t4 = 300, t5 = 400, t6 = 500, t7 = 600;
 
-  // ---------------- Audio Variables (6 systems) ----------------
-  let dnb1, dnb2, dnb3, dnb4, dnb5, dnb6;
-  let gain1, gain2, gain3, gain4, gain5, gain6;
+  // Global rotation variables for dnb1, dnb2, dnb3 shapes (triangles)
+  let rot1 = 0, rot2 = 0, rot3 = 0;
+
+  // ---------------- Audio Variables for 7 loops ----------------
+  let dnb1, dnb2, dnb3, dnb4, dnb5, dnb6, dnb7;
+  let gain1, gain2, gain3, gain4, gain5, gain6, gain7;
   
-  // Global master bus and effect chain (kept for overall sound processing)
-  let masterBus, dryGain, wetGain;
-  let heavyDelay, bandpass, distortion;
+  // Grouping: Group A (dnb1, dnb2, dnb3, dnb6) and Group B (dnb4, dnb5, dnb7)
+  let groupGainA, groupGainB;
+  
+  // NORMAL CHAIN (global effects)
+  let masterBus, dryGain, wetGain, heavyDelay, bandpass, distortion;
+  let normalMixGain;
+  
+  // ALTERNATE CHAIN (filtered path)
+  let highpassFilter, bandpassFilterB, altDistortion;
+  let altMixGain;
+  let finalSum; // sums the two paths
+  
+  // masterAttenuation node to hold overall output at 0 initially
+  let masterAttenuation;
+  
   let globalEffectMix = 0;
+  let currentMode = "normal";
   let mousePressStart = 0;
   let isPlaying = false;
 
   // ---------------- Ball Position Variables ----------------
-  let offset1, offset2, offset3, offset4, offset5, offset6;
-  let finalX1, finalY1, finalX2, finalY2, finalX3, finalY3, finalX4, finalY4, finalX5, finalY5, finalX6, finalY6;
-  let size1, size2, size3, size4, size5, size6;
+  let offset1, offset2, offset3, offset4, offset5, offset6, offset7;
+  let finalX1, finalY1, finalX2, finalY2, finalX3, finalY3, finalX4, finalY4, finalX5, finalY5, finalX6, finalY6, finalX7, finalY7;
+  let size1, size2, size3, size4, size5, size6, size7;
 
   // System active state and fade values.
-  let system1Active = false, system2Active = false, system3Active = false, system4Active = false, system5Active = false, system6Active = false;
-  let system1Fade = 0, system2Fade = 0, system3Fade = 0, system4Fade = 0, system5Fade = 0, system6Fade = 0;
-  let fadeRate = 0.01; // fade step per frame
+  let system1Active = false, system2Active = false, system3Active = false, system4Active = false, system5Active = false, system6Active = false, system7Active = false;
+  let system1Fade = 0, system2Fade = 0, system3Fade = 0, system4Fade = 0, system5Fade = 0, system6Fade = 0, system7Fade = 0;
+  let fadeRate = 0.01;
 
-  // Variables for messages
+  // Variables for messages (alpha values control fade)
   let startMessageAlpha = 255;
   let messageActive = true;
   let firstClickTime = 0;
-  let scareMessageAlpha = 0;
+  let scareMessageAlpha = 255;
   let scareMessageFadingOut = false;
 
   function preload(){
-    // Load the six dnb sounds.
+    // Load the seven dnb sounds.
     dnb1 = loadSound("assets/test/dnb1.wav");
     dnb2 = loadSound("assets/test/dnb2.wav");
     dnb3 = loadSound("assets/test/dnb3.wav");
     dnb4 = loadSound("assets/test/dnb4.wav");
     dnb5 = loadSound("assets/test/dnb5.wav");
     dnb6 = loadSound("assets/test/dnb6.wav");
+    dnb7 = loadSound("assets/test/dnb7.wav");
   }
 
   function setup(){
@@ -78,14 +92,14 @@
     offset4 = createVector(0,0);
     offset5 = createVector(0,0);
     offset6 = createVector(0,0);
+    offset7 = createVector(0,0);
     
-    let bg = color("#FFE4E1");
-    bg.setAlpha(10);
-    background(bg);
+    // Set background to black.
+    background(0);
     userStartAudio().then(() => console.log("Audio Started"));
   }
 
-  // Utility: create a distortion curve for a WaveShaper node.
+  // Utility: create a distortion curve.
   function makeDistortionCurve(amount) {
     let k = typeof amount === 'number' ? amount : 50;
     let n_samples = 44100;
@@ -98,101 +112,291 @@
     return curve;
   }
 
+  // Only start audio when a ball is clicked.
   function startAudio(){
     if(!isPlaying &&
        dnb1.isLoaded() && dnb2.isLoaded() && dnb3.isLoaded() &&
-       dnb4.isLoaded() && dnb5.isLoaded() && dnb6.isLoaded()){
-      let audioContext = getAudioContext();
+       dnb4.isLoaded() && dnb5.isLoaded() && dnb6.isLoaded() && dnb7.isLoaded()){
+      let context = getAudioContext();
+      let rampTime = 0.5;
       
-      // Create gain nodes for each sound.
-      gain1 = audioContext.createGain();
-      gain2 = audioContext.createGain();
-      gain3 = audioContext.createGain();
-      gain4 = audioContext.createGain();
-      gain5 = audioContext.createGain();
-      gain6 = audioContext.createGain();
+      // Create individual gain nodes.
+      gain1 = context.createGain();
+      gain2 = context.createGain();
+      gain3 = context.createGain();
+      gain4 = context.createGain();
+      gain5 = context.createGain();
+      gain6 = context.createGain();
+      gain7 = context.createGain();
       
-      // Start each sound in loop and route it through its gain node.
-      dnb1.disconnect();
-      dnb1.loop();
-      dnb1.connect(gain1);
+      // For each sound, disconnect, connect to its gain, schedule ramp.
+      dnb1.disconnect(); dnb1.connect(gain1);
+      gain1.gain.setValueAtTime(0, context.currentTime);
+      gain1.gain.linearRampToValueAtTime(0.1, context.currentTime + rampTime);
       
-      dnb2.disconnect();
-      dnb2.loop();
-      dnb2.connect(gain2);
+      dnb2.disconnect(); dnb2.connect(gain2);
+      gain2.gain.setValueAtTime(0, context.currentTime);
+      gain2.gain.linearRampToValueAtTime(0.3, context.currentTime + rampTime);
       
-      dnb3.disconnect();
-      dnb3.loop();
-      dnb3.connect(gain3);
+      dnb3.disconnect(); dnb3.connect(gain3);
+      gain3.gain.setValueAtTime(0, context.currentTime);
+      gain3.gain.linearRampToValueAtTime(1, context.currentTime + rampTime);
       
-      dnb4.disconnect();
-      dnb4.loop();
-      dnb4.connect(gain4);
+      dnb4.disconnect(); dnb4.connect(gain4);
+      gain4.gain.setValueAtTime(0, context.currentTime);
+      gain4.gain.linearRampToValueAtTime(1, context.currentTime + rampTime);
       
-      dnb5.disconnect();
-      dnb5.loop();
-      dnb5.connect(gain5);
+      dnb5.disconnect(); dnb5.connect(gain5);
+      gain5.gain.setValueAtTime(0, context.currentTime);
+      gain5.gain.linearRampToValueAtTime(1, context.currentTime + rampTime);
       
-      dnb6.disconnect();
-      dnb6.loop();
-      dnb6.connect(gain6);
+      dnb6.disconnect(); dnb6.connect(gain6);
+      gain6.gain.setValueAtTime(0, context.currentTime);
+      gain6.gain.linearRampToValueAtTime(1, context.currentTime + rampTime);
       
-      // ---------------- Set Up Global Master Bus & Effects ----------------
-      masterBus = audioContext.createGain();
-      // Route each gain node to the master bus.
-      gain1.connect(masterBus);
-      gain2.connect(masterBus);
-      gain3.connect(masterBus);
-      gain4.connect(masterBus);
-      gain5.connect(masterBus);
-      gain6.connect(masterBus);
+      dnb7.disconnect(); dnb7.connect(gain7);
+      gain7.gain.setValueAtTime(0, context.currentTime);
+      gain7.gain.linearRampToValueAtTime(0.1, context.currentTime + rampTime);
       
-      // Create dry and wet paths.
-      dryGain = audioContext.createGain();
-      wetGain = audioContext.createGain();
+      // ---------------- Grouping ----------------
+      groupGainA = context.createGain();
+      groupGainB = context.createGain();
+      gain1.connect(groupGainA);
+      gain2.connect(groupGainA);
+      gain3.connect(groupGainA);
+      gain6.connect(groupGainA);
+      gain4.connect(groupGainB);
+      gain5.connect(groupGainB);
+      gain7.connect(groupGainB);
+      
+      // ---------------- NORMAL CHAIN ----------------
+      masterBus = context.createGain();
+      groupGainA.connect(masterBus);
+      groupGainB.connect(masterBus);
+      
+      dryGain = context.createGain();
+      wetGain = context.createGain();
       masterBus.connect(dryGain);
       masterBus.connect(wetGain);
       dryGain.gain.value = 1;
       wetGain.gain.value = 0;
       
-      // Global effect chain: heavy delay -> bandpass -> distortion.
-      heavyDelay = audioContext.createDelay();
+      heavyDelay = context.createDelay();
       heavyDelay.delayTime.value = 1.0;
-      bandpass = audioContext.createBiquadFilter();
+      bandpass = context.createBiquadFilter();
       bandpass.type = "bandpass";
       bandpass.frequency.value = 1000;
       bandpass.Q.value = 5;
-      distortion = audioContext.createWaveShaper();
+      distortion = context.createWaveShaper();
       distortion.curve = makeDistortionCurve(50);
       distortion.oversample = "4x";
       
       wetGain.connect(heavyDelay);
       heavyDelay.connect(bandpass);
       bandpass.connect(distortion);
-      distortion.connect(audioContext.destination);
-      dryGain.connect(audioContext.destination);
+      
+      normalMixGain = context.createGain();
+      dryGain.connect(normalMixGain);
+      distortion.connect(normalMixGain);
+      
+      // ---------------- ALTERNATE CHAIN ----------------
+      highpassFilter = context.createBiquadFilter();
+      highpassFilter.type = "highpass";
+      highpassFilter.frequency.value = 800;
+      
+      bandpassFilterB = context.createBiquadFilter();
+      bandpassFilterB.type = "bandpass";
+      bandpassFilterB.frequency.value = 800;
+      bandpassFilterB.Q.value = 10;
+      
+      altDistortion = context.createWaveShaper();
+      altDistortion.curve = makeDistortionCurve(50);
+      altDistortion.oversample = "4x";
+      
+      let altChainA = context.createGain();
+      groupGainA.connect(highpassFilter);
+      highpassFilter.connect(altChainA);
+      
+      let altChainB = context.createGain();
+      groupGainB.connect(bandpassFilterB);
+      bandpassFilterB.connect(altDistortion);
+      altDistortion.connect(altChainB);
+      
+      let alternateSum = context.createGain();
+      altChainA.connect(alternateSum);
+      altChainB.connect(alternateSum);
+      
+      altMixGain = context.createGain();
+      alternateSum.connect(altMixGain);
+      
+      // ---------------- FINAL SUM ----------------
+      finalSum = context.createGain();
+      normalMixGain.connect(finalSum);
+      altMixGain.connect(finalSum);
+      
+      // NEW: Create masterAttenuation node and route finalSum through it.
+      masterAttenuation = context.createGain();
+      let startTime = context.currentTime;
+      // Hold at 0 for 1 second, then fade to 1 over the next 1 second.
+      masterAttenuation.gain.setValueAtTime(0, startTime);
+      masterAttenuation.gain.linearRampToValueAtTime(0, startTime + 1);
+      masterAttenuation.gain.linearRampToValueAtTime(1, startTime + 2);
+      
+      finalSum.connect(masterAttenuation);
+      masterAttenuation.connect(context.destination);
+      
+      console.log("Audio started. NormalMixGain initial:", normalMixGain.gain.value, 
+                  "AltMixGain initial:", altMixGain.gain.value);
+      
+      // Delay starting loops by 1000 ms.
+      setTimeout(() => {
+          dnb1.loop();
+          dnb2.loop();
+          dnb3.loop();
+          dnb4.loop();
+          dnb5.loop();
+          dnb6.loop();
+          dnb7.loop();
+          console.log("Loops started after delay");
+      }, 1000);
       
       isPlaying = true;
     }
   }
 
+  // Smoothly crossfade to alternate mode over 0.5 s.
+  function setAlternateMode() {
+    let now = getAudioContext().currentTime;
+    if(normalMixGain && altMixGain) {
+      console.log("Switching to alternate mode at time:", now);
+      normalMixGain.gain.cancelScheduledValues(now);
+      normalMixGain.gain.setValueAtTime(normalMixGain.gain.value, now);
+      normalMixGain.gain.linearRampToValueAtTime(0, now + 0.5);
+      altMixGain.gain.cancelScheduledValues(now);
+      altMixGain.gain.setValueAtTime(altMixGain.gain.value, now);
+      altMixGain.gain.linearRampToValueAtTime(1, now + 0.5);
+    }
+  }
+  
+  // Smoothly crossfade back to normal mode over 0.5 s.
+  function setNormalMode() {
+    let now = getAudioContext().currentTime;
+    if(normalMixGain && altMixGain) {
+      console.log("Switching to normal mode at time:", now);
+      normalMixGain.gain.cancelScheduledValues(now);
+      normalMixGain.gain.setValueAtTime(normalMixGain.gain.value, now);
+      normalMixGain.gain.linearRampToValueAtTime(1, now + 0.5);
+      altMixGain.gain.cancelScheduledValues(now);
+      altMixGain.gain.setValueAtTime(altMixGain.gain.value, now);
+      altMixGain.gain.linearRampToValueAtTime(0, now + 0.5);
+    }
+  }
+
+  // Only trigger audio start if a ball is clicked.
+  function mousePressed(){
+    let ballClicked = false;
+    if(dist(mouseX, mouseY, finalX1, finalY1) < size1/2){
+      ballClicked = true;
+      system1Active = !system1Active;
+    }
+    if(dist(mouseX, mouseY, finalX2, finalY2) < size2/2){
+      ballClicked = true;
+      system2Active = !system2Active;
+    }
+    if(dist(mouseX, mouseY, finalX3, finalY3) < size3/2){
+      ballClicked = true;
+      system3Active = !system3Active;
+    }
+    if(dist(mouseX, mouseY, finalX4, finalY4) < size4/2){
+      ballClicked = true;
+      system4Active = !system4Active;
+    }
+    if(dist(mouseX, mouseY, finalX5, finalY5) < size5/2){
+      ballClicked = true;
+      system5Active = !system5Active;
+    }
+    if(dist(mouseX, mouseY, finalX6, finalY6) < size6/2){
+      ballClicked = true;
+      system6Active = !system6Active;
+    }
+    if(dist(mouseX, mouseY, finalX7, finalY7) < size7/2){
+      ballClicked = true;
+      system7Active = !system7Active;
+    }
+    if(ballClicked && !isPlaying){
+      console.log("Ball clicked; starting audio.");
+      startAudio();
+      if(messageActive){
+        messageActive = false;
+        if(firstClickTime === 0){
+          firstClickTime = millis();
+        }
+      }
+    }
+    if(scareMessageAlpha > 0){
+      scareMessageFadingOut = true;
+    }
+    if(mousePressStart === 0){
+      mousePressStart = millis();
+    }
+  }
+
+  function mouseReleased(){
+    mousePressStart = 0;
+  }
+
+  function touchStarted(){
+    mousePressed();
+    return false;
+  }
+  
+  function touchEnded(){
+    mouseReleased();
+    return false;
+  }
+
+  function windowResized(){
+    resizeCanvas(windowWidth, windowHeight);
+  }
+
+  // Main draw loop.
   function draw(){
-    let bg = color("#FFE4E1");
-    bg.setAlpha(10);
-    background(bg);
+    // Use a semi-transparent black background for trails.
+    background(0, 20);
 
-    // ---------------- Global Effect Mix Control ----------------
+    // ---------------- Mode Switching ----------------
     if(mouseIsPressed && mousePressStart && (millis() - mousePressStart >= 500)){
-      globalEffectMix = min(globalEffectMix + fadeRate, 1);
+      if(currentMode !== "alternate"){
+        setAlternateMode();
+        currentMode = "alternate";
+      }
     } else {
-      globalEffectMix = max(globalEffectMix - fadeRate, 0);
+      if(currentMode !== "normal"){
+        setNormalMode();
+        currentMode = "normal";
+      }
     }
-    if(isPlaying && dryGain && wetGain){
-      dryGain.gain.value = 1 - globalEffectMix;
-      wetGain.gain.value = globalEffectMix;
+    
+    if(currentMode === "normal"){
+      if(mouseIsPressed && mousePressStart && (millis() - mousePressStart >= 500)){
+        globalEffectMix = min(globalEffectMix + fadeRate, 1);
+      } else {
+        globalEffectMix = max(globalEffectMix - fadeRate, 0);
+      }
+      if(isPlaying && dryGain && wetGain){
+        dryGain.gain.value = 1 - globalEffectMix;
+        wetGain.gain.value = globalEffectMix;
+      }
     }
-
-    // ---------------- Compute Base Positions from Noise ----------------
+    
+    // Log current gain values for debugging.
+    if(isPlaying && normalMixGain && altMixGain && masterAttenuation){
+      console.log("normalMixGain.gain:", normalMixGain.gain.value.toFixed(3),
+                  "altMixGain.gain:", altMixGain.gain.value.toFixed(3),
+                  "masterAttenuation.gain:", masterAttenuation.gain.value.toFixed(3));
+    }
+    
+    // ---------------- Compute Ball Positions ----------------
     let baseX1 = width * noise(t);
     let baseY1 = height * noise(t + 5);
     let baseX2 = width * noise(t2);
@@ -205,9 +409,10 @@
     let baseY5 = height * noise(t5 + 5);
     let baseX6 = width * noise(t6);
     let baseY6 = height * noise(t6 + 5);
+    let baseX7 = width * noise(t7);
+    let baseY7 = height * noise(t7 + 5);
 
     // ---------------- Update Offsets for Repulsion ----------------
-    // Repulsion kicks in only if the mouse has been held for > 0.5 sec.
     if(mouseIsPressed && mousePressStart && (millis() - mousePressStart >= 500)){
       let mousePos = createVector(mouseX, mouseY);
       let pos1 = createVector(baseX1, baseY1).add(offset1);
@@ -228,6 +433,9 @@
       let pos6 = createVector(baseX6, baseY6).add(offset6);
       let diff6 = p5.Vector.sub(pos6, mousePos);
       if(diff6.mag() > 0){ diff6.normalize().mult(3); offset6.add(diff6); }
+      let pos7 = createVector(baseX7, baseY7).add(offset7);
+      let diff7 = p5.Vector.sub(pos7, mousePos);
+      if(diff7.mag() > 0){ diff7.normalize().mult(3); offset7.add(diff7); }
     } else {
       offset1.mult(0.95);
       offset2.mult(0.95);
@@ -235,9 +443,9 @@
       offset4.mult(0.95);
       offset5.mult(0.95);
       offset6.mult(0.95);
+      offset7.mult(0.95);
     }
 
-    // ---------------- Compute Final Positions ----------------
     finalX1 = baseX1 + offset1.x;
     finalY1 = baseY1 + offset1.y;
     finalX2 = baseX2 + offset2.x;
@@ -250,16 +458,17 @@
     finalY5 = baseY5 + offset5.y;
     finalX6 = baseX6 + offset6.x;
     finalY6 = baseY6 + offset6.y;
+    finalX7 = baseX7 + offset7.x;
+    finalY7 = baseY7 + offset7.y;
 
-    // ---------------- Determine Sizes ----------------
     size1 = map(finalX1, 0, width, 50, 200);
     size2 = map(finalY2, 0, height, 50, 200);
     size3 = map(finalX3, 0, width, 50, 200);
     size4 = map(finalY4, 0, height, 50, 200);
     size5 = map(finalX5, 0, width, 50, 200);
     size6 = map(finalY6, 0, height, 50, 200);
+    size7 = map(finalX7, 0, width, 50, 200);
 
-    // Constrain positions so balls remain within the canvas
     finalX1 = constrain(finalX1, size1/2, width - size1/2);
     finalY1 = constrain(finalY1, size1/2, height - size1/2);
     finalX2 = constrain(finalX2, size2/2, width - size2/2);
@@ -272,188 +481,158 @@
     finalY5 = constrain(finalY5, size5/2, height - size5/2);
     finalX6 = constrain(finalX6, size6/2, width - size6/2);
     finalY6 = constrain(finalY6, size6/2, height - size6/2);
+    finalX7 = constrain(finalX7, size7/2, width - size7/2);
+    finalY7 = constrain(finalY7, size7/2, height - size7/2);
 
     noStroke();
-    // ---------------- Draw System 1 Ball (horizontal control) ----------------
-    let r1 = 255 * noise(t + 10);
-    let g1 = 255 * noise(t + 15);
-    let b1 = 255 * noise(t + 20);
-    let grey1 = (r1 + g1 + b1) / 3;
-    let finalR1 = lerp(grey1, r1, system1Fade);
-    let finalG1 = lerp(grey1, g1, system1Fade);
-    let finalB1 = lerp(grey1, b1, system1Fade);
-    fill(finalR1, finalG1, finalB1, 150);
-    ellipse(finalX1, finalY1, size1, size1);
-
-    // ---------------- Draw System 2 Ball (vertical control) ----------------
-    let r2 = 255 * noise(t2 + 10);
-    let g2 = 255 * noise(t2 + 15);
-    let b2 = 255 * noise(t2 + 20);
-    let grey2 = (r2 + g2 + b2) / 3;
-    let finalR2 = lerp(grey2, r2, system2Fade);
-    let finalG2 = lerp(grey2, g2, system2Fade);
-    let finalB2 = lerp(grey2, b2, system2Fade);
-    fill(finalR2, finalG2, finalB2, 150);
-    ellipse(finalX2, finalY2, size2, size2);
-
-    // ---------------- Draw System 3 Ball (horizontal control) ----------------
-    let r3 = 255 * noise(t3 + 10);
-    let g3 = 255 * noise(t3 + 15);
-    let b3 = 255 * noise(t3 + 20);
-    let grey3 = (r3 + g3 + b3) / 3;
-    let finalR3 = lerp(grey3, r3, system3Fade);
-    let finalG3 = lerp(grey3, g3, system3Fade);
-    let finalB3 = lerp(grey3, b3, system3Fade);
-    fill(finalR3, finalG3, finalB3, 150);
-    ellipse(finalX3, finalY3, size3, size3);
-
-    // ---------------- Draw System 4 Ball (vertical control) ----------------
-    let r4 = 255 * noise(t4 + 10);
-    let g4 = 255 * noise(t4 + 15);
-    let b4 = 255 * noise(t4 + 20);
-    let grey4 = (r4 + g4 + b4) / 3;
-    let finalR4 = lerp(grey4, r4, system4Fade);
-    let finalG4 = lerp(grey4, g4, system4Fade);
-    let finalB4 = lerp(grey4, b4, system4Fade);
-    fill(finalR4, finalG4, finalB4, 150);
+    // ---------------- Draw Balls ----------------
+    let r_val, g_val, b_val, grey_val;
+    // Ball 1 (dnb1) as a triangle:
+    r_val = 255 * noise(t + 10);
+    g_val = 255 * noise(t + 15);
+    b_val = 255 * noise(t + 20);
+    grey_val = (r_val + g_val + b_val) / 3;
+    let finalR_val1 = lerp(grey_val, r_val, system1Fade);
+    let finalG_val1 = lerp(grey_val, g_val, system1Fade);
+    let finalB_val1 = lerp(grey_val, b_val, system1Fade);
+    rot1 += 0.005;
+    push();
+      translate(finalX1, finalY1);
+      rotate(rot1);
+      fill(221,221,221, startMessageAlpha); // Use text fade alpha if desired or constant alpha
+      fill(finalR_val1, finalG_val1, finalB_val1, 150);
+      triangle(-size1/2, size1/2, 0, -size1/2, size1/2, size1/2);
+    pop();
+    
+    // Ball 2 (dnb2) as a triangle:
+    r_val = 255 * noise(t2 + 10);
+    g_val = 255 * noise(t2 + 15);
+    b_val = 255 * noise(t2 + 20);
+    grey_val = (r_val + g_val + b_val) / 3;
+    let finalR_val2 = lerp(grey_val, r_val, system2Fade);
+    let finalG_val2 = lerp(grey_val, g_val, system2Fade);
+    let finalB_val2 = lerp(grey_val, b_val, system2Fade);
+    rot2 += 0.005;
+    push();
+      translate(finalX2, finalY2);
+      rotate(rot2);
+      fill(finalR_val2, finalG_val2, finalB_val2, 150);
+      triangle(-size2/2, size2/2, 0, -size2/2, size2/2, size2/2);
+    pop();
+    
+    // Ball 3 (dnb3) as a triangle:
+    r_val = 255 * noise(t3 + 10);
+    g_val = 255 * noise(t3 + 15);
+    b_val = 255 * noise(t3 + 20);
+    grey_val = (r_val + g_val + b_val) / 3;
+    let finalR_val3 = lerp(grey_val, r_val, system3Fade);
+    let finalG_val3 = lerp(grey_val, g_val, system3Fade);
+    let finalB_val3 = lerp(grey_val, b_val, system3Fade);
+    rot3 += 0.005;
+    push();
+      translate(finalX3, finalY3);
+      rotate(rot3);
+      fill(finalR_val3, finalG_val3, finalB_val3, 150);
+      triangle(-size3/2, size3/2, 0, -size3/2, size3/2, size3/2);
+    pop();
+    
+    // Balls 4, 5, 6, 7 as ellipses.
+    // Ball 4:
+    r_val = 255 * noise(t4 + 10);
+    g_val = 255 * noise(t4 + 15);
+    b_val = 255 * noise(t4 + 20);
+    grey_val = (r_val + g_val + b_val) / 3;
+    let finalR_val4 = lerp(grey_val, r_val, system4Fade);
+    let finalG_val4 = lerp(grey_val, g_val, system4Fade);
+    let finalB_val4 = lerp(grey_val, b_val, system4Fade);
+    fill(finalR_val4, finalG_val4, finalB_val4, 150);
     ellipse(finalX4, finalY4, size4, size4);
-
-    // ---------------- Draw System 5 Ball (horizontal control) ----------------
-    let r5 = 255 * noise(t5 + 10);
-    let g5 = 255 * noise(t5 + 15);
-    let b5 = 255 * noise(t5 + 20);
-    let grey5 = (r5 + g5 + b5) / 3;
-    let finalR5 = lerp(grey5, r5, system5Fade);
-    let finalG5 = lerp(grey5, g5, system5Fade);
-    let finalB5 = lerp(grey5, b5, system5Fade);
-    fill(finalR5, finalG5, finalB5, 150);
+    // Ball 5:
+    r_val = 255 * noise(t5 + 10);
+    g_val = 255 * noise(t5 + 15);
+    b_val = 255 * noise(t5 + 20);
+    grey_val = (r_val + g_val + b_val) / 3;
+    let finalR_val5 = lerp(grey_val, r_val, system5Fade);
+    let finalG_val5 = lerp(grey_val, g_val, system5Fade);
+    let finalB_val5 = lerp(grey_val, b_val, system5Fade);
+    fill(finalR_val5, finalG_val5, finalB_val5, 150);
     ellipse(finalX5, finalY5, size5, size5);
-
-    // ---------------- Draw System 6 Ball (vertical control) ----------------
-    let r6 = 255 * noise(t6 + 10);
-    let g6 = 255 * noise(t6 + 15);
-    let b6 = 255 * noise(t6 + 20);
-    let grey6 = (r6 + g6 + b6) / 3;
-    let finalR6 = lerp(grey6, r6, system6Fade);
-    let finalG6 = lerp(grey6, g6, system6Fade);
-    let finalB6 = lerp(grey6, b6, system6Fade);
-    fill(finalR6, finalG6, finalB6, 150);
+    // Ball 6:
+    r_val = 255 * noise(t6 + 10);
+    g_val = 255 * noise(t6 + 15);
+    b_val = 255 * noise(t6 + 20);
+    grey_val = (r_val + g_val + b_val) / 3;
+    let finalR_val6 = lerp(grey_val, r_val, system6Fade);
+    let finalG_val6 = lerp(grey_val, g_val, system6Fade);
+    let finalB_val6 = lerp(grey_val, b_val, system6Fade);
+    fill(finalR_val6, finalG_val6, finalB_val6, 150);
     ellipse(finalX6, finalY6, size6, size6);
-
-    // ---------------- Map Volume Based on Final Position ----------------
-    let vol1 = map(finalX1, 0, width, 0, 0.15);
-    let vol2 = map(finalY2, 0, height, 0, 0.15);
+    // Ball 7:
+    r_val = 255 * noise(t7 + 10);
+    g_val = 255 * noise(t7 + 15);
+    b_val = 255 * noise(t7 + 20);
+    grey_val = (r_val + g_val + b_val) / 3;
+    let finalR_val7 = lerp(grey_val, r_val, system7Fade);
+    let finalG_val7 = lerp(grey_val, g_val, system7Fade);
+    let finalB_val7 = lerp(grey_val, b_val, system7Fade);
+    fill(finalR_val7, finalG_val7, finalB_val7, 150);
+    ellipse(finalX7, finalY7, size7, size7);
+    
+    let vol1 = map(finalX1, 0, width, 0, 0.1);
+    let vol2 = map(finalY2, 0, height, 0, 0.3);
     let vol3 = map(finalX3, 0, width, 0, 0.15);
     let vol4 = map(finalY4, 0, height, 0, 0.15);
     let vol5 = map(finalX5, 0, width, 0, 0.15);
     let vol6 = map(finalY6, 0, height, 0, 0.15);
+    let vol7 = map(finalX7, 0, width, 0, 0.1);
 
-    // ---------------- Update Fade Values ----------------
     system1Fade = system1Active ? min(system1Fade + fadeRate, 1) : max(system1Fade - fadeRate, 0);
     system2Fade = system2Active ? min(system2Fade + fadeRate, 1) : max(system2Fade - fadeRate, 0);
     system3Fade = system3Active ? min(system3Fade + fadeRate, 1) : max(system3Fade - fadeRate, 0);
     system4Fade = system4Active ? min(system4Fade + fadeRate, 1) : max(system4Fade - fadeRate, 0);
     system5Fade = system5Active ? min(system5Fade + fadeRate, 1) : max(system5Fade - fadeRate, 0);
     system6Fade = system6Active ? min(system6Fade + fadeRate, 1) : max(system6Fade - fadeRate, 0);
+    system7Fade = system7Active ? min(system7Fade + fadeRate, 1) : max(system7Fade - fadeRate, 0);
 
-    // ---------------- Update Audio Gains ----------------
-    if(isPlaying && gain1 && gain2 && gain3 && gain4 && gain5 && gain6){
+    if(isPlaying && gain1 && gain2 && gain3 && gain4 && gain5 && gain6 && gain7){
       gain1.gain.value = vol1 * system1Fade;
       gain2.gain.value = vol2 * system2Fade;
       gain3.gain.value = vol3 * system3Fade;
       gain4.gain.value = vol4 * system4Fade;
       gain5.gain.value = vol5 * system5Fade;
       gain6.gain.value = vol6 * system6Fade;
+      gain7.gain.value = vol7 * system7Fade;
     }
 
-    // Increment noise offsets for smooth movement
-    t += 0.002;
+    t  += 0.002;
     t2 += 0.003;
     t3 += 0.0025;
     t4 += 0.0035;
     t5 += 0.0027;
     t6 += 0.0032;
+    t7 += 0.0030;
 
-    // ---------------- Display "click a ball to continue" Message ----------------
+    // Use faded text color for start message.
+    fill(221, 221, 221, startMessageAlpha);
+    textSize(32);
+    textAlign(CENTER, CENTER);
     if(startMessageAlpha > 0){
-      let msgColor = color("#ccad9e");
-      msgColor.setAlpha(startMessageAlpha);
-      fill(msgColor);
-      textSize(32);
-      textAlign(CENTER, CENTER);
       text("click a ball to continue", width/2, height/2);
       if(!messageActive){
         startMessageAlpha -= 5;
       }
     }
     
-    // ---------------- Display "Click and hold to scare the balls" Message ----------------
+    // For scare message, also use faded text color.
     if(firstClickTime > 0 && millis() - firstClickTime >= 15000){
+      fill(221, 221, 221, scareMessageAlpha);
+      text("Click and hold to scare the balls", width/2, height * 0.8);
       if(!scareMessageFadingOut){
         scareMessageAlpha = min(scareMessageAlpha + 5, 255);
       } else {
         scareMessageAlpha = max(scareMessageAlpha - 5, 0);
       }
-      let scareMsgColor = color("#ccad9e");
-      scareMsgColor.setAlpha(scareMessageAlpha);
-      fill(scareMsgColor);
-      textSize(32);
-      textAlign(CENTER, CENTER);
-      text("Click and hold to scare the balls", width/2, height * 0.8);
     }
-  }
-
-  function mousePressed(){
-    startAudio();
-    if(messageActive){
-      messageActive = false;
-      if(firstClickTime === 0){
-        firstClickTime = millis();
-      }
-    }
-    if(scareMessageAlpha > 0){
-      scareMessageFadingOut = true;
-    }
-    if(mousePressStart === 0){
-      mousePressStart = millis();
-    }
-    if(dist(mouseX, mouseY, finalX1, finalY1) < size1/2){
-      system1Active = !system1Active;
-    }
-    if(dist(mouseX, mouseY, finalX2, finalY2) < size2/2){
-      system2Active = !system2Active;
-    }
-    if(dist(mouseX, mouseY, finalX3, finalY3) < size3/2){
-      system3Active = !system3Active;
-    }
-    if(dist(mouseX, mouseY, finalX4, finalY4) < size4/2){
-      system4Active = !system4Active;
-    }
-    if(dist(mouseX, mouseY, finalX5, finalY5) < size5/2){
-      system5Active = !system5Active;
-    }
-    if(dist(mouseX, mouseY, finalX6, finalY6) < size6/2){
-      system6Active = !system6Active;
-    }
-  }
-
-  function mouseReleased(){
-    mousePressStart = 0;
-  }
-
-  // Mobile interaction: map touch events to mouse events.
-  function touchStarted(){
-    mousePressed();
-    return false;
-  }
-  
-  function touchEnded(){
-    mouseReleased();
-    return false;
-  }
-
-  function windowResized(){
-    resizeCanvas(windowWidth, windowHeight);
   }
 </script>
 </body>
